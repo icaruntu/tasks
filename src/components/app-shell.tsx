@@ -8,6 +8,7 @@ import { useUI } from "./ui-provider";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { PomodoroWidget } from "./pomodoro-widget";
 import { NotificationBell } from "./notification-bell";
+import { PlanDialog } from "./plan-dialog";
 import { signOut } from "@/app/login/actions";
 
 const NAV = [
@@ -22,6 +23,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [addingProject, setAddingProject] = useState(false);
+  const [planning, setPlanning] = useState(false);
 
   const sidebar = (
     <div className="flex flex-col h-full">
@@ -59,6 +61,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
+
+      <div className="px-2 mt-2">
+        <button
+          onClick={() => {
+            setPlanning(true);
+            setMobileOpen(false);
+          }}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[var(--color-primary)] hover:surface-muted"
+        >
+          <span className="w-4 text-center">✨</span> Plan my day
+        </button>
+      </div>
 
       <div className="px-4 mt-6 mb-1 flex items-center justify-between">
         <span className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -178,6 +192,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <TaskDetailPanel />
+      {planning && <PlanDialog onClose={() => setPlanning(false)} />}
     </div>
   );
 }

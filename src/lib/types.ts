@@ -52,6 +52,13 @@ export const DUE_FILTER_LABELS: Record<NonNullable<DueFilter>, string> = {
   within_14: "Due within 14 days",
 };
 
+export const RECURRENCE_OPTIONS: { value: string; label: string }[] = [
+  { value: "daily", label: "Daily" },
+  { value: "weekdays", label: "Every weekday" },
+  { value: "weekly", label: "Weekly" },
+  { value: "monthly", label: "Monthly" },
+];
+
 export type CompletionFilter = "incomplete" | "complete" | "all";
 
 export type ViewFilters = {

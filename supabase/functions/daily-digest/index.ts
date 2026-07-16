@@ -25,6 +25,8 @@ type TaskRow = {
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const DIGEST_FROM = Deno.env.get("DIGEST_FROM") ?? "TaskFlow <onboarding@resend.dev>";
+// Shared secret so the scheduler can invoke this without a user JWT.
+const CRON_SECRET = Deno.env.get("CRON_SECRET");
 
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
@@ -55,7 +57,12 @@ async function sendEmail(to: string, subject: string, html: string) {
   if (!res.ok) console.error("email failed", to, await res.text());
 }
 
-Deno.serve(async () => {
+Deno.serve(async (req) => {
+  // Auth: require the shared cron secret (function is deployed with verify_jwt=false).
+  if (!CRON_SECRET || req.headers.get("x-cron-secret") !== CRON_SECRET) {
+    return new Response("unauthorized", { status: 401 });
+  }
+
   // Pull every incomplete task with a due date; fan out to owner + assignee.
   const { data: tasks, error } = await supabase
     .from("tasks")

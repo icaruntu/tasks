@@ -9,20 +9,34 @@ so the same Supabase backend can power the planned iPhone (then Android) apps.
 - **Sections & tasks** — create your own sections; tick the circle on the left of a
   task to complete it; inline quick-add.
 - **Task detail** — assignee, due date, section, project(s), priority (high / medium /
-  low), description, subtasks, attachments, and comments with `@mentions`.
+  low), description, subtasks, attachments, comments with an **@mention autocomplete**,
+  and a **Repeat** setting for recurring tasks.
 - **Projects & sharing** — group tasks into projects and share them with other users
-  (owner / editor / viewer roles) via row-level security.
-- **Views** — List, Board (Kanban by section), and Calendar (month grid by due date).
+  (owner / editor / viewer roles) via a Share dialog, enforced by row-level security.
+- **Views** — List, Board (Kanban by section), and Calendar (month grid) with
+  **drag-to-reschedule**.
 - **Filters** — completion (incomplete default / complete / all), due date (before
   today, today, tomorrow, this week, next week, within 14 days), and priority.
 - **Search** — instant search across task names and descriptions.
 - **Drag & drop** — reorder tasks within a section and move them between sections /
-  board columns.
+  board columns; drag tasks across days on the calendar.
+- **Realtime** — shared tasks, comments, and notifications update live via Supabase
+  Realtime.
+- **Notifications** — in-app notification center (bell + unread badge) fed by DB
+  triggers on assignment / mention / comment, plus hourly **due-date reminders**
+  (due-soon / overdue) to both the owner **and** the assignee.
 - **Pomodoro** — a focus timer (25/5/15) you can pin to any task; completed focus
   sessions are logged.
-- **Reminders & daily email** — notification triggers fire on assignment, mention, and
-  comment; a scheduled Edge Function emails each person their actionable tasks each
-  morning (owner **and** the responsible assignee are both notified).
+- **Recurring tasks** — daily / weekday / weekly / monthly; completing one spawns the
+  next occurrence (DB trigger).
+- **AI (optional)** — natural-language task capture ("email vendor next Tue, high
+  priority"), one-click priority + due-date suggestions, and a "Plan my day"
+  assistant. Powered by Claude via the Anthropic API from server routes; enabled by
+  setting `ANTHROPIC_API_KEY`, disabled gracefully without it.
+- **Daily email digest** — a scheduled Edge Function emails each person their
+  actionable tasks each morning (owner and assignee both notified).
+- **Mobile** — an Expo starter app (`mobile/`) sharing the same Supabase backend, for
+  the planned iPhone/Android apps.
 
 ## Stack
 

@@ -18,6 +18,7 @@ import { useUI } from "@/components/ui-provider";
 import { FilterBar } from "@/components/filter-bar";
 import { SectionBlock } from "@/components/section-block";
 import { ShareDialog } from "@/components/share-dialog";
+import { AiQuickAdd } from "@/components/ai-quick-add";
 import { applyFilters, sortTasks } from "@/lib/filter";
 import type { Task } from "@/lib/types";
 
@@ -134,6 +135,7 @@ export default function ListPage() {
 
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4">
         <div className="max-w-3xl mx-auto">
+          <AiQuickAdd />
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}

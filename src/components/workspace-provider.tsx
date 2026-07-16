@@ -149,6 +149,37 @@ export function WorkspaceProvider({
     refresh();
   }, [refresh]);
 
+  // Realtime: re-sync when any relevant table changes (debounced).
+  useEffect(() => {
+    const tables = [
+      "tasks",
+      "task_projects",
+      "sections",
+      "projects",
+      "project_members",
+      "comments",
+      "notifications",
+    ] as const;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => refresh(), 400);
+    };
+    const channel = supabase.channel("workspace-changes");
+    for (const table of tables) {
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table },
+        schedule,
+      );
+    }
+    channel.subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, refresh]);
+
   const me = useMemo(
     () => profiles.find((p) => p.id === userId) ?? null,
     [profiles, userId],

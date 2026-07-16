@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useWorkspace } from "./workspace-provider";
 import { useUI } from "./ui-provider";
 import { Check, Avatar } from "./ui";
 import { toDateInputValue } from "@/lib/dates";
-import { PRIORITY_META, type Priority } from "@/lib/types";
+import { PRIORITY_META, RECURRENCE_OPTIONS, type Priority } from "@/lib/types";
 import type { Tables } from "@/lib/database.types";
 
 type CommentWithAuthor = Tables<"comments"> & { author?: Tables<"profiles"> };
@@ -35,6 +35,22 @@ export function TaskDetailPanel() {
   const [commentText, setCommentText] = useState("");
   const [showProjects, setShowProjects] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [mention, setMention] = useState<{ query: string; start: number } | null>(
+    null,
+  );
+  const commentRef = useRef<HTMLTextAreaElement>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiNote, setAiNote] = useState<string | null>(null);
+
+  const mentionMatches = useMemo(() => {
+    if (!mention) return [];
+    const q = mention.query.toLowerCase();
+    return profiles
+      .filter((p) =>
+        `${p.full_name ?? ""} ${p.email ?? ""}`.toLowerCase().includes(q),
+      )
+      .slice(0, 5);
+  }, [mention, profiles]);
 
   const loadDetail = useCallback(
     async (taskId: string) => {
@@ -116,6 +132,55 @@ export function TaskDetailPanel() {
       setCommentText("");
       refresh();
     }
+  }
+
+  async function suggestPriority() {
+    if (!task || aiBusy) return;
+    setAiBusy(true);
+    setAiNote(null);
+    try {
+      const res = await fetch("/api/ai/prioritize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId: task.id }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAiNote(j.error ?? "Couldn’t get a suggestion.");
+        return;
+      }
+      await updateTask(task.id, {
+        priority: j.priority ?? task.priority,
+        due_date: j.suggested_due_date ?? task.due_date,
+      });
+      setAiNote(j.rationale ?? "Updated.");
+    } catch {
+      setAiNote("Something went wrong.");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  function onCommentChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const val = e.target.value;
+    setCommentText(val);
+    const caret = e.target.selectionStart ?? val.length;
+    const match = val.slice(0, caret).match(/(?:^|\s)@([^\s@]*)$/u);
+    setMention(match ? { query: match[1], start: caret - match[1].length - 1 } : null);
+  }
+
+  function pickMention(name: string) {
+    if (!mention) return;
+    const end = mention.start + 1 + mention.query.length;
+    const next =
+      commentText.slice(0, mention.start) +
+      "@" +
+      name +
+      " " +
+      commentText.slice(end);
+    setCommentText(next);
+    setMention(null);
+    requestAnimationFrame(() => commentRef.current?.focus());
   }
 
   async function onUpload(file: File) {
@@ -282,6 +347,23 @@ export function TaskDetailPanel() {
               </select>
             </PropRow>
 
+            <PropRow label="Repeat">
+              <select
+                value={task.recurrence ?? ""}
+                onChange={(e) =>
+                  updateTask(task.id, { recurrence: e.target.value || null })
+                }
+                className="bg-transparent text-sm outline-none cursor-pointer"
+              >
+                <option value="">Never</option>
+                {RECURRENCE_OPTIONS.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </PropRow>
+
             <PropRow label="Projects">
               <div className="relative">
                 <button
@@ -349,6 +431,18 @@ export function TaskDetailPanel() {
                 )}
               </div>
             </PropRow>
+
+            <div className="pt-1">
+              <button
+                onClick={suggestPriority}
+                disabled={aiBusy}
+                className="inline-flex items-center gap-1.5 text-xs text-[var(--color-primary)] hover:underline disabled:opacity-60"
+              >
+                <span>✨</span>
+                {aiBusy ? "Thinking…" : "Suggest priority & due date"}
+              </button>
+              {aiNote && <p className="text-xs text-muted mt-1">{aiNote}</p>}
+            </div>
           </div>
 
           {/* Description */}
@@ -488,25 +582,46 @@ export function TaskDetailPanel() {
                 <p className="text-xs text-muted">No comments yet.</p>
               )}
             </div>
-            <div className="mt-3 flex gap-2">
-              <textarea
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                placeholder="Comment… use @Name to mention"
-                rows={1}
-                className="flex-1 surface-muted border border-app rounded-lg px-3 py-2 text-sm outline-none resize-none focus:border-[var(--color-primary)]"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                    postComment();
-                  }
-                }}
-              />
-              <button
-                onClick={postComment}
-                className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-lg px-3 text-sm self-stretch"
-              >
-                Send
-              </button>
+            <div className="mt-3 relative">
+              {mention && mentionMatches.length > 0 && (
+                <div className="absolute bottom-full mb-1 left-0 w-64 surface border border-app rounded-lg shadow-lg z-10 overflow-hidden">
+                  {mentionMatches.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => pickMention(p.full_name ?? p.email ?? "")}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 text-sm hover:surface-muted text-left"
+                    >
+                      <Avatar profile={p} size={22} />
+                      <span className="truncate">{p.full_name ?? p.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <textarea
+                  ref={commentRef}
+                  value={commentText}
+                  onChange={onCommentChange}
+                  placeholder="Comment… type @ to mention"
+                  rows={1}
+                  className="flex-1 surface-muted border border-app rounded-lg px-3 py-2 text-sm outline-none resize-none focus:border-[var(--color-primary)]"
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") setMention(null);
+                    if (
+                      e.key === "Enter" &&
+                      (e.metaKey || e.ctrlKey)
+                    ) {
+                      postComment();
+                    }
+                  }}
+                />
+                <button
+                  onClick={postComment}
+                  className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-lg px-3 text-sm self-stretch"
+                >
+                  Send
+                </button>
+              </div>
             </div>
           </div>
         </div>

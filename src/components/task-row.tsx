@@ -81,6 +81,11 @@ export function TaskRow({
           {task.comment_count > 0 && (
             <span className="text-[11px] text-muted">💬 {task.comment_count}</span>
           )}
+          {task.recurrence && (
+            <span className="text-[11px] text-muted" title="Repeats">
+              🔁
+            </span>
+          )}
         </div>
       </div>
 
