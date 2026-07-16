@@ -7,6 +7,7 @@ import { useWorkspace } from "./workspace-provider";
 import { useUI } from "./ui-provider";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { PomodoroWidget } from "./pomodoro-widget";
+import { NotificationBell } from "./notification-bell";
 import { signOut } from "@/app/login/actions";
 
 const NAV = [
@@ -29,6 +30,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           ✓
         </span>
         TaskFlow
+        <span className="ml-auto">
+          <NotificationBell />
+        </span>
       </div>
 
       <nav className="px-2 mt-2 space-y-0.5">
@@ -166,6 +170,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ☰
           </button>
           <span className="font-semibold">TaskFlow</span>
+          <span className="ml-auto">
+            <NotificationBell />
+          </span>
         </header>
         <main className="flex-1 overflow-hidden">{children}</main>
       </div>

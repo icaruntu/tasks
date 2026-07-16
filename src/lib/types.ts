@@ -6,6 +6,10 @@ export type Section = Tables<"sections">;
 export type TaskRow = Tables<"tasks">;
 export type Comment = Tables<"comments">;
 export type Attachment = Tables<"attachments">;
+export type ProjectMember = Tables<"project_members">;
+export type Notification = Tables<"notifications">;
+
+export type MemberRole = "owner" | "editor" | "viewer";
 
 export type Priority = "high" | "medium" | "low";
 

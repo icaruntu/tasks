@@ -17,6 +17,7 @@ import { useWorkspace } from "@/components/workspace-provider";
 import { useUI } from "@/components/ui-provider";
 import { FilterBar } from "@/components/filter-bar";
 import { SectionBlock } from "@/components/section-block";
+import { ShareDialog } from "@/components/share-dialog";
 import { applyFilters, sortTasks } from "@/lib/filter";
 import type { Task } from "@/lib/types";
 
@@ -27,6 +28,7 @@ export default function ListPage() {
     useWorkspace();
   const { filters } = useUI();
   const [addingSection, setAddingSection] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -110,8 +112,25 @@ export default function ListPage() {
             "My Tasks"
           )}
         </h1>
-        <FilterBar />
+        <div className="flex items-center gap-2">
+          {currentProject && (
+            <button
+              onClick={() => setSharing(true)}
+              className="flex items-center gap-1.5 border border-app rounded-lg px-3 py-1.5 text-sm surface-muted hover:surface"
+            >
+              <span aria-hidden>👥</span> Share
+            </button>
+          )}
+          <FilterBar />
+        </div>
       </div>
+
+      {sharing && currentProject && (
+        <ShareDialog
+          projectId={currentProject.id}
+          onClose={() => setSharing(false)}
+        />
+      )}
 
       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-4">
         <div className="max-w-3xl mx-auto">

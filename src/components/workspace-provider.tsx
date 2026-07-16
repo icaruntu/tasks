@@ -16,6 +16,9 @@ import type {
   Task,
   TaskRow,
   Priority,
+  ProjectMember,
+  Notification,
+  MemberRole,
 } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
@@ -58,6 +61,23 @@ type Ctx = {
   deleteProject: (id: string) => Promise<void>;
 
   setTaskProjects: (taskId: string, projectIds: string[]) => Promise<void>;
+
+  // Project sharing
+  membersOf: (projectId: string) => ProjectMember[];
+  addMember: (projectId: string, userId: string, role: MemberRole) => Promise<void>;
+  updateMemberRole: (
+    projectId: string,
+    userId: string,
+    role: MemberRole,
+  ) => Promise<void>;
+  removeMember: (projectId: string, userId: string) => Promise<void>;
+
+  // Notifications
+  notifications: Notification[];
+  unreadCount: number;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
+  reloadNotifications: () => Promise<void>;
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
@@ -83,9 +103,11 @@ export function WorkspaceProvider({
   const [allTasks, setAllTasks] = useState<TaskRow[]>([]);
   const [links, setLinks] = useState<TaskProjectLink[]>([]);
   const [comments, setComments] = useState<CommentLite[]>([]);
+  const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   const refresh = useCallback(async () => {
-    const [p, s, pr, t, tp, c] = await Promise.all([
+    const [p, s, pr, t, tp, c, m, n] = await Promise.all([
       supabase.from("profiles").select("*").order("full_name"),
       supabase.from("sections").select("*").order("position"),
       supabase
@@ -96,6 +118,12 @@ export function WorkspaceProvider({
       supabase.from("tasks").select("*").order("position"),
       supabase.from("task_projects").select("task_id, project_id"),
       supabase.from("comments").select("id, task_id"),
+      supabase.from("project_members").select("*"),
+      supabase
+        .from("notifications")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(50),
     ]);
     setProfiles(p.data ?? []);
     setSections(s.data ?? []);
@@ -103,7 +131,18 @@ export function WorkspaceProvider({
     setAllTasks(t.data ?? []);
     setLinks(tp.data ?? []);
     setComments(c.data ?? []);
+    setMembers(m.data ?? []);
+    setNotifications(n.data ?? []);
     setLoading(false);
+  }, [supabase]);
+
+  const reloadNotifications = useCallback(async () => {
+    const { data } = await supabase
+      .from("notifications")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setNotifications(data ?? []);
   }, [supabase]);
 
   useEffect(() => {
@@ -314,6 +353,96 @@ export function WorkspaceProvider({
     [supabase],
   );
 
+  // ---------- Project sharing ----------
+  const membersOf = useCallback<Ctx["membersOf"]>(
+    (projectId) => members.filter((m) => m.project_id === projectId),
+    [members],
+  );
+
+  const addMember = useCallback<Ctx["addMember"]>(
+    async (projectId, memberUserId, role) => {
+      const { data } = await supabase
+        .from("project_members")
+        .insert({ project_id: projectId, user_id: memberUserId, role })
+        .select("*")
+        .single();
+      if (data) setMembers((prev) => [...prev, data]);
+    },
+    [supabase],
+  );
+
+  const updateMemberRole = useCallback<Ctx["updateMemberRole"]>(
+    async (projectId, memberUserId, role) => {
+      setMembers((prev) =>
+        prev.map((m) =>
+          m.project_id === projectId && m.user_id === memberUserId
+            ? { ...m, role }
+            : m,
+        ),
+      );
+      await supabase
+        .from("project_members")
+        .update({ role })
+        .eq("project_id", projectId)
+        .eq("user_id", memberUserId);
+    },
+    [supabase],
+  );
+
+  const removeMember = useCallback<Ctx["removeMember"]>(
+    async (projectId, memberUserId) => {
+      setMembers((prev) =>
+        prev.filter(
+          (m) => !(m.project_id === projectId && m.user_id === memberUserId),
+        ),
+      );
+      // If the user removed themselves, the project also disappears for them.
+      if (memberUserId === userId) {
+        setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      }
+      await supabase
+        .from("project_members")
+        .delete()
+        .eq("project_id", projectId)
+        .eq("user_id", memberUserId);
+    },
+    [supabase, userId],
+  );
+
+  // ---------- Notifications ----------
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.read_at).length,
+    [notifications],
+  );
+
+  const markNotificationRead = useCallback<Ctx["markNotificationRead"]>(
+    async (id) => {
+      const now = new Date().toISOString();
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, read_at: now } : n)),
+      );
+      await supabase
+        .from("notifications")
+        .update({ read_at: now })
+        .eq("id", id);
+    },
+    [supabase],
+  );
+
+  const markAllNotificationsRead = useCallback<Ctx["markAllNotificationsRead"]>(
+    async () => {
+      const now = new Date().toISOString();
+      setNotifications((prev) =>
+        prev.map((n) => (n.read_at ? n : { ...n, read_at: now })),
+      );
+      await supabase
+        .from("notifications")
+        .update({ read_at: now })
+        .is("read_at", null);
+    },
+    [supabase],
+  );
+
   const value: Ctx = {
     supabase,
     userId,
@@ -339,6 +468,15 @@ export function WorkspaceProvider({
     updateProject,
     deleteProject,
     setTaskProjects,
+    membersOf,
+    addMember,
+    updateMemberRole,
+    removeMember,
+    notifications,
+    unreadCount,
+    markNotificationRead,
+    markAllNotificationsRead,
+    reloadNotifications,
   };
 
   return (
