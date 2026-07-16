@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, toolInput, AI_MODEL_FAST } from "@/lib/anthropic";
+import { aiQuotaResponse, logAiUsage } from "@/lib/ai-usage";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,9 @@ export async function POST(req: Request) {
       { error: "AI is not configured. Set ANTHROPIC_API_KEY." },
       { status: 501 },
     );
+
+  const quota = await aiQuotaResponse(supabase, user.id);
+  if (quota) return quota;
 
   const { text, timezone } = await req.json().catch(() => ({}));
   if (!text || !String(text).trim())
@@ -67,6 +71,8 @@ export async function POST(req: Request) {
       },
     ],
   });
+
+  await logAiUsage(supabase, user.id, "parse-task", resp.usage);
 
   const parsed = toolInput(resp.content);
   return NextResponse.json(parsed ?? { name: String(text) });

@@ -9,6 +9,8 @@ import { TaskDetailPanel } from "./task-detail-panel";
 import { PomodoroWidget } from "./pomodoro-widget";
 import { NotificationBell } from "./notification-bell";
 import { PlanDialog } from "./plan-dialog";
+import { UpgradePrompt } from "./upgrade-prompt";
+import { PLAN_META } from "@/lib/plans";
 import { signOut } from "@/app/login/actions";
 
 const NAV = [
@@ -18,12 +20,13 @@ const NAV = [
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { projects, me, createProject } = useWorkspace();
+  const { projects, me, createProject, plan, limits } = useWorkspace();
   const { setFilters, filters } = useUI();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [addingProject, setAddingProject] = useState(false);
   const [planning, setPlanning] = useState(false);
+  const [upgradeMsg, setUpgradeMsg] = useState<string | null>(null);
 
   const sidebar = (
     <div className="flex flex-col h-full">
@@ -79,7 +82,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           Projects
         </span>
         <button
-          onClick={() => setAddingProject(true)}
+          onClick={() => {
+            if (projects.length >= limits.maxProjects) {
+              setUpgradeMsg(
+                "The Free plan is limited to 5 projects. Upgrade to Pro for unlimited projects.",
+              );
+            } else {
+              setAddingProject(true);
+            }
+          }}
           className="text-muted hover:text-[var(--foreground)] text-lg leading-none"
           title="New project"
         >
@@ -95,6 +106,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             className="w-full surface-muted border border-app rounded-lg px-3 py-1.5 text-sm outline-none"
             onKeyDown={async (e) => {
               if (e.key === "Enter" && e.currentTarget.value.trim()) {
+                if (projects.length >= limits.maxProjects) {
+                  setAddingProject(false);
+                  setUpgradeMsg(
+                    "The Free plan is limited to 5 projects. Upgrade to Pro for unlimited projects.",
+                  );
+                  return;
+                }
                 await createProject(
                   e.currentTarget.value.trim(),
                   PROJECT_COLORS[
@@ -137,6 +155,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="p-2 border-t border-app">
         <PomodoroWidget />
+      </div>
+
+      <div className="px-2 pt-2">
+        <Link
+          href="/settings/billing"
+          onClick={() => setMobileOpen(false)}
+          className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
+            plan === "free"
+              ? "text-[var(--color-primary)] hover:surface-muted"
+              : "text-muted hover:surface-muted"
+          }`}
+        >
+          <span>{plan === "free" ? "✨ Upgrade" : `${PLAN_META[plan].name} plan`}</span>
+          <span className="text-xs opacity-70">›</span>
+        </Link>
       </div>
 
       <div className="p-3 border-t border-app flex items-center justify-between">
@@ -193,6 +226,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <TaskDetailPanel />
       {planning && <PlanDialog onClose={() => setPlanning(false)} />}
+      {upgradeMsg && (
+        <UpgradePrompt
+          title="Upgrade to Pro"
+          message={upgradeMsg}
+          onClose={() => setUpgradeMsg(null)}
+        />
+      )}
     </div>
   );
 }

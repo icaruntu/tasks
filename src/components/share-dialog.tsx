@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useWorkspace } from "./workspace-provider";
+import { UpgradePrompt } from "./upgrade-prompt";
 import { Avatar } from "./ui";
 import type { MemberRole } from "@/lib/types";
 
@@ -20,8 +21,10 @@ export function ShareDialog({
     addMember,
     updateMemberRole,
     removeMember,
+    limits,
   } = useWorkspace();
   const [query, setQuery] = useState("");
+  const [upgrade, setUpgrade] = useState(false);
 
   const project = projects.find((p) => p.id === projectId);
   const members = membersOf(projectId);
@@ -82,6 +85,10 @@ export function ShareDialog({
                     <button
                       key={p.id}
                       onClick={async () => {
+                        if (members.length >= limits.maxMembersPerProject) {
+                          setUpgrade(true);
+                          return;
+                        }
                         await addMember(projectId, p.id, "editor");
                         setQuery("");
                       }}
@@ -192,6 +199,13 @@ export function ShareDialog({
           )}
         </div>
       </div>
+      {upgrade && (
+        <UpgradePrompt
+          title="Upgrade to share more"
+          message="The Free plan allows up to 2 collaborators per project. Upgrade to Pro for unlimited sharing."
+          onClose={() => setUpgrade(false)}
+        />
+      )}
     </>
   );
 }

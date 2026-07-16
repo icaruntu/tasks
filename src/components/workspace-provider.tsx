@@ -22,9 +22,12 @@ import type {
 } from "@/lib/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/database.types";
+import { PLAN_LIMITS, type Plan, type PlanLimits } from "@/lib/plans";
 
 type TaskProjectLink = { task_id: string; project_id: string };
 type CommentLite = { id: string; task_id: string };
+
+const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
 
 type Ctx = {
   supabase: SupabaseClient<Database>;
@@ -78,6 +81,10 @@ type Ctx = {
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
   reloadNotifications: () => Promise<void>;
+
+  // Billing
+  plan: Plan;
+  limits: PlanLimits;
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
@@ -105,9 +112,10 @@ export function WorkspaceProvider({
   const [comments, setComments] = useState<CommentLite[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [plan, setPlan] = useState<Plan>("free");
 
   const refresh = useCallback(async () => {
-    const [p, s, pr, t, tp, c, m, n] = await Promise.all([
+    const [p, s, pr, t, tp, c, m, n, sub] = await Promise.all([
       supabase.from("profiles").select("*").order("full_name"),
       supabase.from("sections").select("*").order("position"),
       supabase
@@ -124,6 +132,11 @@ export function WorkspaceProvider({
         .select("*")
         .order("created_at", { ascending: false })
         .limit(50),
+      supabase
+        .from("subscriptions")
+        .select("plan, status")
+        .eq("user_id", userId)
+        .maybeSingle(),
     ]);
     setProfiles(p.data ?? []);
     setSections(s.data ?? []);
@@ -133,8 +146,13 @@ export function WorkspaceProvider({
     setComments(c.data ?? []);
     setMembers(m.data ?? []);
     setNotifications(n.data ?? []);
+    setPlan(
+      sub.data && ACTIVE_STATUSES.has(sub.data.status)
+        ? ((sub.data.plan as Plan) ?? "free")
+        : "free",
+    );
     setLoading(false);
-  }, [supabase]);
+  }, [supabase, userId]);
 
   const reloadNotifications = useCallback(async () => {
     const { data } = await supabase
@@ -508,6 +526,8 @@ export function WorkspaceProvider({
     markNotificationRead,
     markAllNotificationsRead,
     reloadNotifications,
+    plan,
+    limits: PLAN_LIMITS[plan],
   };
 
   return (

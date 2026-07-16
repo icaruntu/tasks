@@ -97,6 +97,30 @@ supabase secrets set RESEND_API_KEY=... DIGEST_FROM="TaskFlow <tasks@yourdomain.
 
 Without `RESEND_API_KEY` the function runs in dry-run mode and just logs recipients.
 
+## Billing (optional)
+
+Freemium with a per-seat team tier, using a **provider-agnostic** `subscriptions`
+row so web and mobile share one entitlement.
+
+- **Web — Stripe.** Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, the three
+  `STRIPE_PRICE_*` IDs, and `NEXT_PUBLIC_APP_URL`. Routes: `/api/billing/checkout`
+  (Checkout), `/api/billing/portal` (Customer Portal), `/api/billing/webhook`
+  (signature-verified sync). Point the Stripe webhook at `/api/billing/webhook`.
+- **Mobile — Apple/Google via RevenueCat.** Point the RevenueCat webhook at
+  `/api/billing/revenuecat` with `REVENUECAT_WEBHOOK_SECRET`; set the RevenueCat
+  appUserID to the Supabase user id. Writes `provider = 'apple' | 'google'`.
+- **Entitlements & limits.** `PLAN_LIMITS` in `src/lib/plans.ts`; the server helper
+  in `src/lib/entitlements.ts` resolves the effective plan. Free-tier caps (5
+  projects, 2 collaborators/project) are enforced both in the UI and by DB triggers.
+  AI features are metered in `ai_usage` and gated by a monthly quota per plan.
+
+Billing is entirely optional — with the env vars unset, billing/AI endpoints return
+501 and the app runs on the Free plan.
+
+> **Team seats (phased).** The `team` plan works at the entitlement level and Stripe
+> tracks seat quantity, but full multi-user **workspaces** (org tables, invites,
+> workspace-scoped RLS) are a larger follow-up tracked in issue #17.
+
 ## Deploy to Vercel
 
 1. Import the repo into Vercel.
