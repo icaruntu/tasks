@@ -19,10 +19,14 @@ export async function POST(req: Request) {
       { status: 501 },
     );
 
-  const { priceKey } = await req.json().catch(() => ({}));
+  const { priceKey, seats } = await req.json().catch(() => ({}));
   const price = PRICE_IDS[priceKey as string];
   if (!price)
     return NextResponse.json({ error: "Unknown plan" }, { status: 400 });
+
+  // Team is per-seat (#17): quantity = seats (min 1). Other plans are always 1.
+  const quantity =
+    priceKey === "team" ? Math.max(1, Math.min(500, Math.floor(Number(seats) || 1))) : 1;
 
   // Reuse the Stripe customer if we've seen one for this user.
   const { data: sub } = await supabase
@@ -46,7 +50,16 @@ export async function POST(req: Request) {
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer,
-    line_items: [{ price, quantity: 1 }],
+    line_items: [
+      {
+        price,
+        quantity,
+        // Let team admins change their seat count from Checkout.
+        ...(priceKey === "team"
+          ? { adjustable_quantity: { enabled: true, minimum: 1, maximum: 500 } }
+          : {}),
+      },
+    ],
     success_url: `${origin}/?billing=success`,
     cancel_url: `${origin}/pricing?billing=cancelled`,
     metadata: { user_id: user.id },

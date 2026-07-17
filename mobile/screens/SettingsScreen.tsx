@@ -7,9 +7,12 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useWorkspace } from "../lib/store";
 import { colors } from "../lib/theme";
 import { Avatar, Button } from "../components/common";
+import type { RootStackParamList } from "../lib/navigation";
 
 export function SettingsScreen() {
   const {
@@ -20,6 +23,7 @@ export function SettingsScreen() {
     updateMyProfile,
     signOut,
   } = useWorkspace();
+  const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const [email, setEmail] = useState("");
   const [collabErr, setCollabErr] = useState<string | null>(null);
@@ -104,6 +108,13 @@ export function SettingsScreen() {
           <Button label="Save" onPress={savePomodoro} />
           {saved && <Text style={styles.saved}>Saved.</Text>}
         </View>
+      </View>
+
+      {/* Upgrade */}
+      <View style={styles.card}>
+        <Text style={styles.h2}>✨ TaskFlow Pro</Text>
+        <Text style={styles.hint}>Unlimited projects, reminders, recurring tasks, and AI.</Text>
+        <Button label="Upgrade to Pro" onPress={() => nav.navigate("Paywall")} />
       </View>
 
       {/* Account */}

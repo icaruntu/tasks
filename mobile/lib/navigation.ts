@@ -4,6 +4,7 @@ export type RootStackParamList = {
   Tabs: undefined;
   TaskDetail: { taskId: string };
   Notifications: undefined;
+  Paywall: undefined;
 };
 
 export type RootStackScreenProps<T extends keyof RootStackParamList> =

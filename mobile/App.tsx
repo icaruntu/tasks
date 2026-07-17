@@ -10,6 +10,7 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import { WorkspaceProvider } from "./lib/store";
+import { registerForPush } from "./lib/push";
 import { colors } from "./lib/theme";
 import type { RootStackParamList, TabsParamList } from "./lib/navigation";
 import { AuthScreen } from "./screens/AuthScreen";
@@ -19,6 +20,7 @@ import { CalendarScreen } from "./screens/CalendarScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TaskDetailScreen } from "./screens/TaskDetailScreen";
 import { NotificationsScreen } from "./screens/NotificationsScreen";
+import { PaywallScreen } from "./screens/PaywallScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 const Tabs = createBottomTabNavigator<TabsParamList>();
@@ -67,6 +69,11 @@ export default function App() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Register this device for push once signed in (#42). Best-effort.
+  useEffect(() => {
+    if (session?.user.id) registerForPush(session.user.id).catch(() => {});
+  }, [session?.user.id]);
+
   if (!ready) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
@@ -93,6 +100,11 @@ export default function App() {
                   name="Notifications"
                   component={NotificationsScreen}
                   options={{ title: "Notifications", presentation: "modal" }}
+                />
+                <Stack.Screen
+                  name="Paywall"
+                  component={PaywallScreen}
+                  options={{ title: "Upgrade", presentation: "modal" }}
                 />
               </Stack.Navigator>
             </NavigationContainer>

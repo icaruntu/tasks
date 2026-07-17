@@ -77,4 +77,27 @@ describe("POST /api/billing/checkout", () => {
       (state.stripe as { customers: { create: ReturnType<typeof vi.fn> } }).customers.create,
     ).not.toHaveBeenCalled();
   });
+
+  it("uses the seat count as the line-item quantity for the team plan (#17)", async () => {
+    const { POST } = await import("./route");
+    await POST(req({ priceKey: "team", seats: 7 }));
+    const create = (state.stripe as {
+      checkout: { sessions: { create: ReturnType<typeof vi.fn> } };
+    }).checkout.sessions.create;
+    const arg = create.mock.calls[0][0] as {
+      line_items: { quantity: number; adjustable_quantity?: unknown }[];
+    };
+    expect(arg.line_items[0].quantity).toBe(7);
+    expect(arg.line_items[0].adjustable_quantity).toBeDefined();
+  });
+
+  it("keeps quantity at 1 for non-team plans", async () => {
+    const { POST } = await import("./route");
+    await POST(req({ priceKey: "pro_monthly", seats: 9 }));
+    const create = (state.stripe as {
+      checkout: { sessions: { create: ReturnType<typeof vi.fn> } };
+    }).checkout.sessions.create;
+    const arg = create.mock.calls[0][0] as { line_items: { quantity: number }[] };
+    expect(arg.line_items[0].quantity).toBe(1);
+  });
 });
