@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   addMonths,
   eachDayOfInterval,
@@ -19,9 +20,11 @@ import { PRIORITY_META, type Task } from "../lib/types";
 import type { RootStackParamList } from "../lib/navigation";
 
 export function CalendarScreen() {
-  const { tasks } = useWorkspace();
+  const { tasks, updateTask } = useWorkspace();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [month, setMonth] = useState(() => new Date());
+  // Long-pressing a task chip opens a picker to reschedule it (#41).
+  const [reschedule, setReschedule] = useState<{ id: string; due: Date } | null>(null);
 
   const days = useMemo(() => {
     const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 });
@@ -83,6 +86,9 @@ export function CalendarScreen() {
                   key={t.id}
                   style={styles.chip}
                   onPress={() => nav.navigate("TaskDetail", { taskId: t.id })}
+                  onLongPress={() =>
+                    setReschedule({ id: t.id, due: t.due_date ? new Date(t.due_date) : new Date() })
+                  }
                 >
                   {t.priority && (
                     <View style={[styles.chipDot, { backgroundColor: PRIORITY_META[t.priority].color }]} />
@@ -99,6 +105,22 @@ export function CalendarScreen() {
           );
         })}
       </View>
+
+      {reschedule && (
+        <DateTimePicker
+          value={reschedule.due}
+          mode="date"
+          display={Platform.OS === "ios" ? "inline" : "default"}
+          onChange={(_e, date) => {
+            const target = reschedule;
+            setReschedule(Platform.OS === "ios" ? reschedule : null);
+            if (date && target) {
+              updateTask(target.id, { due_date: date.toISOString() });
+              if (Platform.OS !== "ios") setReschedule(null);
+            }
+          }}
+        />
+      )}
     </ScrollView>
   );
 }

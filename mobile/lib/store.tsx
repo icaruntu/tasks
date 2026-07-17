@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { Pressable, StyleSheet, Text } from "react-native";
 import { supabase } from "./supabase";
 import type {
   Comment,
@@ -58,6 +59,10 @@ type Ctx = {
 
   markAllNotificationsRead: () => Promise<void>;
   signOut: () => Promise<void>;
+
+  // Transient error surface for failed mutations (#43).
+  toast: string | null;
+  dismissToast: () => void;
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
@@ -87,6 +92,8 @@ export function WorkspaceProvider({
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [collabLinks, setCollabLinks] = useState<CollabLink[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
+  const dismissToast = useCallback(() => setToast(null), []);
 
   const refresh = useCallback(async () => {
     const [p, s, pr, t, tp, c, m, n, col] = await Promise.all([
@@ -111,6 +118,17 @@ export function WorkspaceProvider({
     setCollabLinks((col.data as CollabLink[]) ?? []);
     setLoading(false);
   }, []);
+
+  // Surface a failed mutation and reconcile optimistic state by re-syncing (#43).
+  const reportError = useCallback(
+    (error: { message?: string } | null): boolean => {
+      if (!error) return false;
+      setToast(error.message || "Something went wrong — your change was reverted.");
+      refresh();
+      return true;
+    },
+    [refresh],
+  );
 
   useEffect(() => {
     refresh();
@@ -198,83 +216,111 @@ export function WorkspaceProvider({
 
   const createTask = useCallback<Ctx["createTask"]>(
     async (input) => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tasks")
         .insert({ ...input, creator_id: userId })
         .select("*")
         .single();
-      if (data) setAllTasks((prev) => [...prev, data as TaskRow]);
-      return (data as TaskRow) ?? null;
+      if (reportError(error) || !data) return null;
+      setAllTasks((prev) => [...prev, data as TaskRow]);
+      return data as TaskRow;
     },
-    [userId],
+    [userId, reportError],
   );
 
-  const updateTask = useCallback<Ctx["updateTask"]>(async (id, patch) => {
-    setAllTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-    await supabase.from("tasks").update(patch).eq("id", id);
-  }, []);
+  const updateTask = useCallback<Ctx["updateTask"]>(
+    async (id, patch) => {
+      setAllTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+      const { error } = await supabase.from("tasks").update(patch).eq("id", id);
+      reportError(error);
+    },
+    [reportError],
+  );
 
-  const toggleComplete = useCallback<Ctx["toggleComplete"]>(async (id, completed) => {
-    setAllTasks((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, completed, completed_at: completed ? new Date().toISOString() : null } : t,
-      ),
-    );
-    await supabase.from("tasks").update({ completed }).eq("id", id);
-  }, []);
+  const toggleComplete = useCallback<Ctx["toggleComplete"]>(
+    async (id, completed) => {
+      setAllTasks((prev) =>
+        prev.map((t) =>
+          t.id === id ? { ...t, completed, completed_at: completed ? new Date().toISOString() : null } : t,
+        ),
+      );
+      const { error } = await supabase.from("tasks").update({ completed }).eq("id", id);
+      reportError(error);
+    },
+    [reportError],
+  );
 
-  const deleteTask = useCallback<Ctx["deleteTask"]>(async (id) => {
-    setAllTasks((prev) => prev.filter((t) => t.id !== id && t.parent_task_id !== id));
-    await supabase.from("tasks").delete().eq("id", id);
-  }, []);
+  const deleteTask = useCallback<Ctx["deleteTask"]>(
+    async (id) => {
+      setAllTasks((prev) => prev.filter((t) => t.id !== id && t.parent_task_id !== id));
+      const { error } = await supabase.from("tasks").delete().eq("id", id);
+      reportError(error);
+    },
+    [reportError],
+  );
 
   const createSection = useCallback<Ctx["createSection"]>(
     async (name) => {
       const maxPos = sections.reduce((m, s) => Math.max(m, s.position), 0);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("sections")
         .insert({ name, owner_id: userId, position: maxPos + 1000 })
         .select("*")
         .single();
+      if (reportError(error)) return;
       if (data) setSections((prev) => [...prev, data as Section]);
     },
-    [sections, userId],
+    [sections, userId, reportError],
   );
 
-  const deleteSection = useCallback<Ctx["deleteSection"]>(async (id) => {
-    setSections((prev) => prev.filter((s) => s.id !== id));
-    setAllTasks((prev) => prev.map((t) => (t.section_id === id ? { ...t, section_id: null } : t)));
-    await supabase.from("sections").delete().eq("id", id);
-  }, []);
+  const deleteSection = useCallback<Ctx["deleteSection"]>(
+    async (id) => {
+      setSections((prev) => prev.filter((s) => s.id !== id));
+      setAllTasks((prev) => prev.map((t) => (t.section_id === id ? { ...t, section_id: null } : t)));
+      const { error } = await supabase.from("sections").delete().eq("id", id);
+      reportError(error);
+    },
+    [reportError],
+  );
 
   const createProject = useCallback<Ctx["createProject"]>(
     async (name, color) => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("projects")
         .insert({ name, color, owner_id: userId })
         .select("*")
         .single();
+      if (reportError(error)) return;
       if (data) setProjects((prev) => [...prev, data as Project]);
     },
-    [userId],
+    [userId, reportError],
   );
 
-  const deleteProject = useCallback<Ctx["deleteProject"]>(async (id) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
-    setLinks((prev) => prev.filter((l) => l.project_id !== id));
-    await supabase.from("projects").delete().eq("id", id);
-  }, []);
+  const deleteProject = useCallback<Ctx["deleteProject"]>(
+    async (id) => {
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+      setLinks((prev) => prev.filter((l) => l.project_id !== id));
+      const { error } = await supabase.from("projects").delete().eq("id", id);
+      reportError(error);
+    },
+    [reportError],
+  );
 
-  const setTaskProjects = useCallback<Ctx["setTaskProjects"]>(async (taskId, projectIds) => {
-    setLinks((prev) => [
-      ...prev.filter((l) => l.task_id !== taskId),
-      ...projectIds.map((project_id) => ({ task_id: taskId, project_id })),
-    ]);
-    await supabase.from("task_projects").delete().eq("task_id", taskId);
-    if (projectIds.length) {
-      await supabase.from("task_projects").insert(projectIds.map((project_id) => ({ task_id: taskId, project_id })));
-    }
-  }, []);
+  const setTaskProjects = useCallback<Ctx["setTaskProjects"]>(
+    async (taskId, projectIds) => {
+      setLinks((prev) => [
+        ...prev.filter((l) => l.task_id !== taskId),
+        ...projectIds.map((project_id) => ({ task_id: taskId, project_id })),
+      ]);
+      // Atomic replace via RPC (mirrors web #30).
+      const { error } = await supabase.rpc("set_task_projects", {
+        p_task_id: taskId,
+        p_project_ids: projectIds,
+      });
+      reportError(error);
+    },
+    [reportError],
+  );
 
   const addCollaboratorByEmail = useCallback<Ctx["addCollaboratorByEmail"]>(
     async (email) => {
@@ -330,10 +376,11 @@ export function WorkspaceProvider({
 
   const addComment = useCallback<Ctx["addComment"]>(
     async (taskId, body) => {
-      await supabase.from("comments").insert({ task_id: taskId, author_id: userId, body });
+      const { error } = await supabase.from("comments").insert({ task_id: taskId, author_id: userId, body });
+      if (reportError(error)) return;
       setComments((prev) => [...prev, { id: Math.random().toString(), task_id: taskId }]);
     },
-    [userId],
+    [userId, reportError],
   );
 
   const unreadCount = useMemo(() => notifications.filter((n) => !n.read_at).length, [notifications]);
@@ -381,7 +428,36 @@ export function WorkspaceProvider({
     addComment,
     markAllNotificationsRead,
     signOut,
+    toast,
+    dismissToast,
   };
 
-  return <WorkspaceCtx.Provider value={value}>{children}</WorkspaceCtx.Provider>;
+  return (
+    <WorkspaceCtx.Provider value={value}>
+      {children}
+      {toast != null && <Toast message={toast} onDismiss={dismissToast} />}
+    </WorkspaceCtx.Provider>
+  );
 }
+
+function Toast({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <Pressable onPress={onDismiss} style={toastStyles.wrap} accessibilityRole="alert">
+      <Text style={toastStyles.text}>{message}</Text>
+    </Pressable>
+  );
+}
+
+const toastStyles = StyleSheet.create({
+  wrap: {
+    position: "absolute",
+    bottom: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: "#e11d48",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  text: { color: "#fff", fontSize: 14 },
+});

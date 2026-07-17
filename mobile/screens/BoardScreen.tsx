@@ -1,17 +1,21 @@
 import { useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import DraggableFlatList, {
+  type RenderItemParams,
+} from "react-native-draggable-flatlist";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useWorkspace } from "../lib/store";
 import { colors } from "../lib/theme";
-import { Check, PriorityDot, DueLabel } from "../components/common";
+import { positionForIndex } from "../lib/dnd";
+import { Card } from "../components/task-card";
 import type { RootStackParamList } from "../lib/navigation";
 import type { Task } from "../lib/types";
 
 const INBOX = "__inbox__";
 
 export function BoardScreen() {
-  const { tasks, sections, toggleComplete } = useWorkspace();
+  const { tasks, sections, updateTask } = useWorkspace();
   const nav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
 
   const columns = useMemo(() => {
@@ -28,6 +32,13 @@ export function BoardScreen() {
     return cols;
   }, [tasks, sections]);
 
+  function onReorder(data: Task[], from: number, to: number) {
+    if (from === to) return;
+    const moved = data[to];
+    const position = positionForIndex(data, to);
+    if (position !== moved.position) updateTask(moved.id, { position });
+  }
+
   return (
     <ScrollView horizontal style={styles.flex} contentContainerStyle={styles.board}>
       {columns.map((col) => (
@@ -35,28 +46,21 @@ export function BoardScreen() {
           <Text style={styles.colTitle}>
             {col.name} <Text style={styles.count}>{col.data.length}</Text>
           </Text>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {col.data.map((t) => (
-              <Pressable
-                key={t.id}
-                style={styles.card}
-                onPress={() => nav.navigate("TaskDetail", { taskId: t.id })}
-              >
-                <View style={styles.cardTop}>
-                  <Check size={18} checked={t.completed} onPress={() => toggleComplete(t.id, !t.completed)} />
-                  <Text style={styles.cardName}>{t.name}</Text>
-                </View>
-                <View style={styles.cardMeta}>
-                  <PriorityDot priority={t.priority} />
-                  <DueLabel date={t.due_date} />
-                  {t.subtask_count > 0 && (
-                    <Text style={styles.metaText}>☑ {t.subtask_done}/{t.subtask_count}</Text>
-                  )}
-                </View>
-              </Pressable>
-            ))}
-            {col.data.length === 0 && <Text style={styles.empty}>No tasks</Text>}
-          </ScrollView>
+          <DraggableFlatList
+            data={col.data}
+            keyExtractor={(t) => t.id}
+            onDragEnd={({ data, from, to }) => onReorder(data, from, to)}
+            activationDistance={12}
+            ListEmptyComponent={<Text style={styles.empty}>No tasks</Text>}
+            renderItem={({ item, drag, isActive }: RenderItemParams<Task>) => (
+              <Card
+                task={item}
+                onPress={() => nav.navigate("TaskDetail", { taskId: item.id })}
+                onLongPress={drag}
+                active={isActive}
+              />
+            )}
+          />
         </View>
       ))}
     </ScrollView>
@@ -69,10 +73,5 @@ const styles = StyleSheet.create({
   column: { width: 260, backgroundColor: colors.bgMuted, borderRadius: 12, padding: 10 },
   colTitle: { fontSize: 14, fontWeight: "700", color: colors.text, marginBottom: 8, paddingHorizontal: 2 },
   count: { color: colors.muted, fontWeight: "400" },
-  card: { backgroundColor: colors.bg, borderRadius: 10, padding: 12, marginBottom: 8, borderWidth: 1, borderColor: colors.border },
-  cardTop: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
-  cardName: { flex: 1, fontSize: 15, color: colors.text },
-  cardMeta: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, paddingLeft: 26 },
-  metaText: { fontSize: 11, color: colors.muted },
   empty: { color: colors.muted, fontSize: 13, padding: 8 },
 });

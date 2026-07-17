@@ -6,6 +6,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
 import { WorkspaceProvider } from "./lib/store";
@@ -75,29 +76,31 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
-      <StatusBar style="auto" />
-      {session ? (
-        <WorkspaceProvider userId={session.user.id}>
-          <NavigationContainer>
-            <Stack.Navigator>
-              <Stack.Screen name="Tabs" component={AppTabs} options={{ headerShown: false }} />
-              <Stack.Screen
-                name="TaskDetail"
-                component={TaskDetailScreen}
-                options={{ title: "Task", presentation: "modal" }}
-              />
-              <Stack.Screen
-                name="Notifications"
-                component={NotificationsScreen}
-                options={{ title: "Notifications", presentation: "modal" }}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
-        </WorkspaceProvider>
-      ) : (
-        <AuthScreen />
-      )}
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <StatusBar style="auto" />
+        {session ? (
+          <WorkspaceProvider userId={session.user.id}>
+            <NavigationContainer>
+              <Stack.Navigator>
+                <Stack.Screen name="Tabs" component={AppTabs} options={{ headerShown: false }} />
+                <Stack.Screen
+                  name="TaskDetail"
+                  component={TaskDetailScreen}
+                  options={{ title: "Task", presentation: "modal" }}
+                />
+                <Stack.Screen
+                  name="Notifications"
+                  component={NotificationsScreen}
+                  options={{ title: "Notifications", presentation: "modal" }}
+                />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </WorkspaceProvider>
+        ) : (
+          <AuthScreen />
+        )}
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
