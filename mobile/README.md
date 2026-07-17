@@ -1,17 +1,28 @@
-# TaskFlow — Mobile (Expo)
+# TaskFlow — Mobile (Expo / React Native)
 
-Starting scaffold for the iPhone app (issue #7); Android comes from the same Expo
-codebase (#8). It talks to the **same Supabase backend** as the web app, so auth,
-RLS, and data are shared.
+The iPhone app (issue #7); Android comes from the same Expo codebase (#8). It
+talks to the **same Supabase backend** as the web app, so auth, RLS, and data are
+shared.
 
 ## What's here
 
-- Email/password auth (Supabase Auth, session persisted with AsyncStorage).
-- A task list (your incomplete top-level tasks), tap-to-complete, quick add.
-- Realtime updates via Supabase Realtime.
+Near feature-parity with the web app:
 
-This is intentionally minimal — a foundation to grow into full parity (task detail,
-projects, sharing, pomodoro, push notifications).
+- **Auth** — email/password (Supabase Auth), session persisted via AsyncStorage.
+- **List** — tasks grouped by section, inline add, tap-to-complete, subtasks shown
+  indented, project filter chips, completed toggle, add section / add project.
+- **Board** — horizontally scrollable columns per section.
+- **Calendar** — month grid with due-date chips; tap a chip to open the task.
+- **Task detail** — edit name/description, due date (native date picker), priority,
+  section, recurrence, project links, assignee (restricted to collaborators),
+  subtasks with due dates, comments, delete.
+- **Settings** — manage collaborators by email, configure Pomodoro durations, sign out.
+- **Notifications** — list with unread badge and mark-all-read.
+- **Realtime** — the whole workspace re-syncs on Supabase Realtime changes.
+
+Architecture mirrors the web app: a `WorkspaceProvider` store (`lib/store.tsx`)
+holds all data + mutations and derives `connectedProfiles` so pickers only show
+collaborators; screens live in `screens/`, shared UI in `components/`.
 
 ## Run it
 
@@ -24,13 +35,15 @@ npx expo start             # press i for iOS simulator, a for Android
 ```
 
 > The pinned versions in `package.json` are a starting point — `npx expo install`
-> reconciles them with the installed Expo SDK. If you prefer, regenerate the shell
-> with `npx create-expo-app` and drop in `App.tsx` + `lib/`.
+> reconciles them with the installed Expo SDK.
 
-## Roadmap (per the GitHub issues)
+Type-check without a simulator: `npm run typecheck`.
 
-- Reuse the web app's domain types + filter logic via a shared package.
-- Task detail, projects, board/calendar, pomodoro.
-- **Apple In-App Purchase via RevenueCat** (#23) for subscriptions; Expo push for
-  reminders/mentions.
+## Still to do
+
+- **Drag-to-reorder / drag-to-reschedule** (web has it; mobile edits via the detail
+  screen for now).
+- **Apple In-App Purchase via RevenueCat** (#23) for subscriptions; the web billing
+  routes and the RevenueCat webhook already exist.
+- **Expo push notifications** for reminders/mentions.
 - Android build + Play Store track (#8).
