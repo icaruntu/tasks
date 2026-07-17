@@ -7,6 +7,13 @@
 
 begin;
 
+-- Mirror the base table grants Supabase provides in production, so the tests
+-- exercise RLS (which sits on top of grants) rather than tripping on a missing
+-- GRANT in the fresh local stack.
+grant usage on schema public to authenticated, anon;
+grant all on all tables in schema public to authenticated, anon;
+grant all on all sequences in schema public to authenticated, anon;
+
 -- ── fixtures (as the superuser connection, which bypasses RLS) ──
 -- Three users; profiles are created by the handle_new_user trigger.
 insert into auth.users (id, email, aud, role)

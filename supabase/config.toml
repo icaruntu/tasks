@@ -26,8 +26,5 @@ enabled = true
 [storage]
 enabled = true
 
-[inbucket]
-enabled = false
-
 [analytics]
 enabled = false
