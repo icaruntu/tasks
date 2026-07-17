@@ -353,6 +353,75 @@ describe("notifications", () => {
   });
 });
 
+describe("realtime incremental updates (#27)", () => {
+  async function emit(
+    supabase: ReturnType<typeof createSupabaseMock>,
+    table: string,
+    type: "INSERT" | "UPDATE" | "DELETE",
+    row: Record<string, unknown>,
+  ) {
+    await act(async () => {
+      (supabase as unknown as { _emit: (t: string, e: string, r: unknown) => void })._emit(
+        table,
+        type,
+        row,
+      );
+      await Promise.resolve();
+    });
+  }
+
+  it("applies task INSERT/UPDATE/DELETE without a full refetch", async () => {
+    const { ws, supabase } = await mount({ tasks: [makeTask({ id: "t1", name: "One" })] });
+    await emit(supabase, "tasks", "INSERT", makeTask({ id: "t2", name: "Two" }));
+    expect(ws().allTasks.some((t) => t.id === "t2")).toBe(true);
+    await emit(supabase, "tasks", "UPDATE", { id: "t1", name: "One!" });
+    expect(ws().allTasks.find((t) => t.id === "t1")?.name).toBe("One!");
+    await emit(supabase, "tasks", "DELETE", { id: "t2" });
+    expect(ws().allTasks.some((t) => t.id === "t2")).toBe(false);
+  });
+
+  it("applies section and project changes", async () => {
+    const { ws, supabase } = await mount({ sections: [], projects: [] });
+    await emit(supabase, "sections", "INSERT", makeSection({ id: "s1", name: "S" }));
+    expect(ws().sections.some((s) => s.id === "s1")).toBe(true);
+    await emit(supabase, "projects", "INSERT", makeProject({ id: "p1", name: "P" }));
+    expect(ws().projects.some((p) => p.id === "p1")).toBe(true);
+    await emit(supabase, "projects", "DELETE", { id: "p1" });
+    expect(ws().projects.some((p) => p.id === "p1")).toBe(false);
+  });
+
+  it("applies task_projects link add and remove", async () => {
+    const { ws, supabase } = await mount({
+      tasks: [makeTask({ id: "t1" })],
+      task_projects: [],
+    });
+    await emit(supabase, "task_projects", "INSERT", { task_id: "t1", project_id: "p1" });
+    expect(ws().projectIdsOf("t1")).toContain("p1");
+    // duplicate INSERT is ignored
+    await emit(supabase, "task_projects", "INSERT", { task_id: "t1", project_id: "p1" });
+    expect(ws().projectIdsOf("t1")).toEqual(["p1"]);
+    await emit(supabase, "task_projects", "DELETE", { task_id: "t1", project_id: "p1" });
+    expect(ws().projectIdsOf("t1")).not.toContain("p1");
+  });
+
+  it("reloads notifications on a notification event", async () => {
+    const { ws, supabase } = await mount({ notifications: [] });
+    supabase._store.notifications.push({
+      id: "n1",
+      user_id: "user-1",
+      read_at: null,
+      created_at: "2026-02-01",
+      type: "assigned",
+      title: "New",
+      body: null,
+      task_id: null,
+      emailed_at: null,
+    });
+    await emit(supabase, "notifications", "INSERT", { id: "n1" });
+    expect(ws().notifications.some((n) => n.id === "n1")).toBe(true);
+  });
+});
+
 // helper: run an async workspace call inside act and return its resolved value
 async function actReturn<T>(fn: () => Promise<T>): Promise<T> {
   let out!: T;

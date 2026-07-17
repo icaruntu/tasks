@@ -209,8 +209,13 @@ export function createSupabaseMock(
   for (const [k, v] of Object.entries(seed)) store[k] = v.map((r) => ({ ...r }));
 
   const userId = opts.userId ?? "user-1";
+  // Capture postgres_changes handlers so tests can emit realtime events.
+  const handlers: { table: string; cb: (payload: unknown) => void }[] = [];
   const channel = {
-    on: vi.fn().mockReturnThis(),
+    on: vi.fn((_event: string, filter: { table: string }, cb: (p: unknown) => void) => {
+      handlers.push({ table: filter.table, cb });
+      return channel;
+    }),
     subscribe: vi.fn().mockReturnThis(),
   };
 
@@ -253,6 +258,22 @@ export function createSupabaseMock(
     },
     channel: vi.fn(() => channel),
     removeChannel: vi.fn(),
+    /** Test helper: fire a realtime postgres_changes event for a table. */
+    _emit(
+      table: string,
+      eventType: "INSERT" | "UPDATE" | "DELETE",
+      row: Record<string, unknown>,
+    ) {
+      for (const h of handlers) {
+        if (h.table === table) {
+          h.cb(
+            eventType === "DELETE"
+              ? { eventType, old: row, new: {} }
+              : { eventType, new: row, old: {} },
+          );
+        }
+      }
+    },
   };
 
   return client;

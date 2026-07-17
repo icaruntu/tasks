@@ -25,7 +25,7 @@ import { useWorkspace } from "@/components/workspace-provider";
 import { useUI } from "@/components/ui-provider";
 import { FilterBar } from "@/components/filter-bar";
 import { applyFilters } from "@/lib/filter";
-import { rescheduleToDay } from "@/lib/dnd";
+import { planCalendarReschedule } from "@/lib/dnd";
 import { PRIORITY_META, type Task } from "@/lib/types";
 
 export default function CalendarPage() {
@@ -59,15 +59,8 @@ export default function CalendarPage() {
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over) return;
-    const overId = String(over.id);
-    if (!overId.startsWith("day:")) return;
-    const key = overId.slice(4);
-    const task = tasks.find((t) => t.id === active.id);
-    if (!task) return;
-
-    // Preserve the original time-of-day; just move the calendar day.
-    const nextDue = rescheduleToDay(key, task.due_date);
-    if (nextDue) updateTask(task.id, { due_date: nextDue });
+    const plan = planCalendarReschedule(String(active.id), String(over.id), tasks);
+    if (plan) updateTask(plan.id, { due_date: plan.due_date });
   }
 
   if (loading)

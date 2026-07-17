@@ -20,11 +20,7 @@ import { SectionBlock } from "@/components/section-block";
 import { ShareDialog } from "@/components/share-dialog";
 import { AiQuickAdd } from "@/components/ai-quick-add";
 import { applyFilters, sortTasks } from "@/lib/filter";
-import {
-  INBOX,
-  resolveDropSection,
-  computeInsertPosition,
-} from "@/lib/dnd";
+import { INBOX, planListMove } from "@/lib/dnd";
 import type { Task } from "@/lib/types";
 
 export default function ListPage() {
@@ -59,20 +55,8 @@ export default function ListPage() {
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over) return;
-    const activeId = String(active.id);
-    const overId = String(over.id);
-    if (activeId === overId) return;
-
-    // Resolve the destination section.
-    const destSection = resolveDropSection(overId, "sec:", tasks);
-    const list = (grouped.get(destSection) ?? []).filter(
-      (t) => t.id !== activeId,
-    );
-    const overIndex = list.findIndex((t) => t.id === overId);
-    const insertAt = overIndex === -1 ? list.length : overIndex;
-    const position = computeInsertPosition(list, insertAt);
-
-    moveTask(activeId, destSection === INBOX ? null : destSection, position);
+    const plan = planListMove(String(active.id), String(over.id), tasks, grouped);
+    if (plan) moveTask(plan.id, plan.sectionId, plan.position);
   }
 
   if (loading) {

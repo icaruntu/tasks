@@ -16,7 +16,7 @@ import { useUI } from "@/components/ui-provider";
 import { FilterBar } from "@/components/filter-bar";
 import { Check, DueBadge, PriorityBadge, Avatar } from "@/components/ui";
 import { applyFilters, sortTasks } from "@/lib/filter";
-import { INBOX, resolveDropSection, appendPosition } from "@/lib/dnd";
+import { INBOX, planBoardMove } from "@/lib/dnd";
 import type { Task } from "@/lib/types";
 
 export default function BoardPage() {
@@ -43,12 +43,8 @@ export default function BoardPage() {
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over) return;
-    const activeId = String(active.id);
-    const overId = String(over.id);
-    const destSection = resolveDropSection(overId, "col:", tasks);
-    const list = grouped.get(destSection) ?? [];
-    const position = appendPosition(list);
-    moveTask(activeId, destSection === INBOX ? null : destSection, position);
+    const plan = planBoardMove(String(active.id), String(over.id), tasks, grouped);
+    moveTask(plan.id, plan.sectionId, plan.position);
   }
 
   if (loading)

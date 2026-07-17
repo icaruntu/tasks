@@ -51,4 +51,19 @@ describe("updateSession", () => {
     const res = await updateSession(makeRequest("/board") as never);
     expect(res.headers.get("location")).toBeNull();
   });
+
+  it("wires cookie getAll/setAll adapters onto request and response", async () => {
+    const req = makeRequest("/board");
+    const { updateSession } = await import("./middleware");
+    await updateSession(req as never);
+    const cfg = (createServerClient.mock.calls[0] as unknown[])[2] as {
+      cookies: {
+        getAll: () => unknown;
+        setAll: (c: { name: string; value: string; options?: unknown }[]) => void;
+      };
+    };
+    cfg.cookies.getAll();
+    cfg.cookies.setAll([{ name: "sb", value: "v", options: {} }]);
+    expect(req.cookies.set).toHaveBeenCalledWith("sb", "v");
+  });
 });

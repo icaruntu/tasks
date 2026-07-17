@@ -31,15 +31,17 @@ export default defineConfig({
         "src/test/**",
       ],
       // Lines & statements are the canonical coverage metric and are enforced
-      // at the 90% target. Functions/branches sit slightly lower because the
-      // drag-and-drop onDragEnd handlers can't be triggered without real
-      // pointer events in jsdom — their logic is extracted into lib/dnd.ts and
-      // covered at 100% there. Thresholds are set to the achieved floor so
+      // at the 90% target (currently ~96%). Functions/branches sit a little
+      // lower because the drag-and-drop onDragEnd wrappers and a few
+      // presentational inline handlers can't be triggered without real pointer
+      // events in jsdom — the drag *logic* is extracted into lib/dnd.ts
+      // (planListMove/planBoardMove/planCalendarReschedule) and covered 100%
+      // there. Thresholds are pinned just below the achieved floor so
       // regressions still fail CI.
       thresholds: {
         lines: 90,
         statements: 90,
-        functions: 80,
+        functions: 82,
         branches: 84,
       },
     },

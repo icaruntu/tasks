@@ -53,3 +53,50 @@ export function rescheduleToDay(
       next.toISOString().slice(0, 10);
   return sameDay ? null : next.toISOString();
 }
+
+export type MovePlan = {
+  id: string;
+  sectionId: string | null;
+  position: number;
+};
+
+/** Plan a list-view reorder/move from a drag (null = no-op). */
+export function planListMove(
+  activeId: string,
+  overId: string,
+  tasks: Pick<Task, "id" | "section_id">[],
+  grouped: Map<string, Pick<Task, "id" | "position">[]>,
+): MovePlan | null {
+  if (activeId === overId) return null;
+  const destSection = resolveDropSection(overId, "sec:", tasks);
+  const list = (grouped.get(destSection) ?? []).filter((t) => t.id !== activeId);
+  const overIndex = list.findIndex((t) => t.id === overId);
+  const insertAt = overIndex === -1 ? list.length : overIndex;
+  const position = computeInsertPosition(list, insertAt);
+  return { id: activeId, sectionId: destSection === INBOX ? null : destSection, position };
+}
+
+/** Plan a board-view move (append to the destination column). */
+export function planBoardMove(
+  activeId: string,
+  overId: string,
+  tasks: Pick<Task, "id" | "section_id">[],
+  grouped: Map<string, Pick<Task, "position">[]>,
+): MovePlan {
+  const destSection = resolveDropSection(overId, "col:", tasks);
+  const position = appendPosition(grouped.get(destSection) ?? []);
+  return { id: activeId, sectionId: destSection === INBOX ? null : destSection, position };
+}
+
+/** Plan a calendar reschedule from a drop onto a day cell (null = no-op). */
+export function planCalendarReschedule(
+  activeId: string,
+  overId: string,
+  tasks: Pick<Task, "id" | "due_date">[],
+): { id: string; due_date: string } | null {
+  if (!overId.startsWith("day:")) return null;
+  const task = tasks.find((t) => t.id === activeId);
+  if (!task) return null;
+  const nextDue = rescheduleToDay(overId.slice(4), task.due_date);
+  return nextDue ? { id: activeId, due_date: nextDue } : null;
+}
