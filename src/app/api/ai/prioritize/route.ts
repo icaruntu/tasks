@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, toolInput, AI_MODEL } from "@/lib/anthropic";
-import { aiQuotaResponse, logAiUsage } from "@/lib/ai-usage";
+import { reserveAiRequest, recordAiTokens } from "@/lib/ai-usage";
 
 export const runtime = "nodejs";
 
@@ -20,9 +20,6 @@ export async function POST(req: Request) {
       { status: 501 },
     );
 
-  const quota = await aiQuotaResponse(supabase, user.id);
-  if (quota) return quota;
-
   const { taskId } = await req.json().catch(() => ({}));
   if (!taskId) return NextResponse.json({ error: "Missing taskId" }, { status: 400 });
 
@@ -33,6 +30,9 @@ export async function POST(req: Request) {
     .eq("id", taskId)
     .single();
   if (!task) return NextResponse.json({ error: "Task not found" }, { status: 404 });
+
+  const reserved = await reserveAiRequest(supabase, user.id, "prioritize");
+  if (!reserved.ok) return reserved.response;
 
   const { data: siblings } = await supabase
     .from("tasks")
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
     ],
   });
 
-  await logAiUsage(supabase, user.id, "prioritize", resp.usage);
+  await recordAiTokens(supabase, reserved.usageId, resp.usage);
 
   const parsed = toolInput(resp.content);
   return NextResponse.json(parsed ?? { error: "No suggestion" });

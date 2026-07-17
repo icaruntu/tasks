@@ -618,6 +618,10 @@ export type Database = {
       generate_due_reminders: { Args: never; Returns: number }
       is_project_member: { Args: { pid: string }; Returns: boolean }
       is_project_owner: { Args: { pid: string }; Returns: boolean }
+      reserve_ai_request: {
+        Args: { p_feature: string; p_limit: number }
+        Returns: string | null
+      }
       set_task_projects: {
         Args: { p_task_id: string; p_project_ids: string[] }
         Returns: undefined

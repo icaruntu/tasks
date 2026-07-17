@@ -3,10 +3,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSupabaseMock } from "@/test/supabase-mock";
 import { makeTask } from "@/test/factories";
 
-const state: { user: unknown; client: unknown; quota: unknown; create: ReturnType<typeof vi.fn> } = {
+const state: { user: unknown; client: unknown; reservation: unknown; create: ReturnType<typeof vi.fn> } = {
   user: { id: "user-1" },
   client: null,
-  quota: null,
+  reservation: { ok: true, usageId: "u1" },
   create: vi.fn(),
 };
 
@@ -16,8 +16,8 @@ vi.mock("@/lib/anthropic", async (orig) => ({
   getAnthropic: vi.fn(() => ({ messages: { create: state.create } })),
 }));
 vi.mock("@/lib/ai-usage", () => ({
-  aiQuotaResponse: vi.fn(async () => state.quota),
-  logAiUsage: vi.fn(async () => {}),
+  reserveAiRequest: vi.fn(async () => state.reservation),
+  recordAiTokens: vi.fn(async () => {}),
 }));
 
 const req = (body: unknown) =>
@@ -31,7 +31,7 @@ beforeEach(() => {
   );
   m.auth.getUser = vi.fn(async () => ({ data: { user: state.user }, error: null }));
   state.client = m;
-  state.quota = null;
+  state.reservation = { ok: true, usageId: "u1" };
   state.create.mockResolvedValue({
     content: [{ type: "tool_use", name: "suggest", input: { priority: "high", rationale: "urgent" } }],
     usage: { input_tokens: 3, output_tokens: 1 },

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getAnthropic, textOf, AI_MODEL } from "@/lib/anthropic";
-import { aiQuotaResponse, logAiUsage } from "@/lib/ai-usage";
+import { reserveAiRequest, recordAiTokens } from "@/lib/ai-usage";
 
 export const runtime = "nodejs";
 
@@ -19,9 +19,6 @@ export async function POST() {
       { error: "AI is not configured. Set ANTHROPIC_API_KEY." },
       { status: 501 },
     );
-
-  const quota = await aiQuotaResponse(supabase, user.id);
-  if (quota) return quota;
 
   const endOfTomorrow = new Date();
   endOfTomorrow.setDate(endOfTomorrow.getDate() + 1);
@@ -47,6 +44,10 @@ export async function POST() {
       plan: "Nothing urgent on your plate — no overdue, due-soon, or high-priority tasks. Enjoy the breathing room, or pull something forward from *Later*.",
     });
 
+  // Reserve quota only once we know we'll actually call the model.
+  const reserved = await reserveAiRequest(supabase, user.id, "plan");
+  if (!reserved.ok) return reserved.response;
+
   const list = actionable
     .map(
       (t) =>
@@ -69,7 +70,7 @@ export async function POST() {
     ],
   });
 
-  await logAiUsage(supabase, user.id, "plan", resp.usage);
+  await recordAiTokens(supabase, reserved.usageId, resp.usage);
 
   return NextResponse.json({ plan: textOf(resp.content) });
 }

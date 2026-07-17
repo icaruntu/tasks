@@ -2,10 +2,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createSupabaseMock } from "@/test/supabase-mock";
 
-const state: { user: unknown; client: unknown; quota: unknown; create: ReturnType<typeof vi.fn> } = {
+const state: { user: unknown; client: unknown; reservation: unknown; create: ReturnType<typeof vi.fn> } = {
   user: { id: "user-1" },
   client: null,
-  quota: null,
+  reservation: { ok: true, usageId: "u1" },
   create: vi.fn(),
 };
 
@@ -20,8 +20,8 @@ vi.mock("@/lib/anthropic", async (orig) => {
   };
 });
 vi.mock("@/lib/ai-usage", () => ({
-  aiQuotaResponse: vi.fn(async () => state.quota),
-  logAiUsage: vi.fn(async () => {}),
+  reserveAiRequest: vi.fn(async () => state.reservation),
+  recordAiTokens: vi.fn(async () => {}),
 }));
 
 function req(body: unknown) {
@@ -36,7 +36,7 @@ beforeEach(() => {
   const m = createSupabaseMock({ ai_usage: [] }, { userId: "user-1" });
   m.auth.getUser = vi.fn(async () => ({ data: { user: state.user }, error: null }));
   state.client = m;
-  state.quota = null;
+  state.reservation = { ok: true, usageId: "u1" };
   state.create.mockResolvedValue({
     content: [{ type: "tool_use", name: "create_task", input: { name: "Parsed", priority: "high" } }],
     usage: { input_tokens: 5, output_tokens: 2 },
@@ -54,7 +54,7 @@ describe("POST /api/ai/parse-task", () => {
 
   it("returns the quota response when over limit", async () => {
     const { NextResponse } = await import("next/server");
-    state.quota = NextResponse.json({ error: "over" }, { status: 402 });
+    state.reservation = { ok: false, response: NextResponse.json({ error: "over" }, { status: 402 }) };
     const { POST } = await import("./route");
     const res = await POST(req({ text: "x" }));
     expect(res.status).toBe(402);
@@ -66,13 +66,13 @@ describe("POST /api/ai/parse-task", () => {
     expect(res.status).toBe(400);
   });
 
-  it("parses text into a structured task and logs usage", async () => {
+  it("parses text into a structured task and records usage", async () => {
     const { POST } = await import("./route");
-    const { logAiUsage } = await import("@/lib/ai-usage");
+    const { recordAiTokens } = await import("@/lib/ai-usage");
     const res = await POST(req({ text: "call sam", timezone: "UTC" }));
     const json = await res.json();
     expect(json.name).toBe("Parsed");
-    expect(logAiUsage).toHaveBeenCalled();
+    expect(recordAiTokens).toHaveBeenCalled();
   });
 
   it("falls back to raw text when the model returns no tool call", async () => {

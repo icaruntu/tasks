@@ -224,6 +224,29 @@ export function createSupabaseMock(
     from: vi.fn((table: string) => new QueryBuilder(store, table)),
     // Minimal RPC support for the functions the app calls.
     rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === "reserve_ai_request") {
+        const start = new Date();
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+        const used = (store.ai_usage ?? []).filter(
+          (r) =>
+            (r as { user_id: string }).user_id === userId &&
+            (r as { created_at?: string }).created_at !== undefined
+              ? new Date((r as { created_at: string }).created_at) >= start
+              : true,
+        ).length;
+        if (used >= (args.p_limit as number)) return { data: null, error: null };
+        const id = `usage-${(store.ai_usage ?? []).length + 1}`;
+        (store.ai_usage ??= []).push({
+          id,
+          user_id: userId,
+          feature: args.p_feature,
+          created_at: new Date().toISOString(),
+          input_tokens: 0,
+          output_tokens: 0,
+        });
+        return { data: id, error: null };
+      }
       if (name === "set_task_projects") {
         const taskId = args.p_task_id as string;
         const ids = (args.p_project_ids as string[]) ?? [];
