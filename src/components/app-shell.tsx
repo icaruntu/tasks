@@ -159,6 +159,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="px-2 pt-2">
         <Link
+          href="/settings"
+          onClick={() => setMobileOpen(false)}
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition ${
+            pathname === "/settings"
+              ? "surface font-medium shadow-sm"
+              : "text-muted hover:surface-muted"
+          }`}
+        >
+          <span className="w-4 text-center opacity-70">⚙</span> Settings
+        </Link>
+        <Link
           href="/settings/billing"
           onClick={() => setMobileOpen(false)}
           className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${

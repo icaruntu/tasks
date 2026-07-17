@@ -17,6 +17,7 @@ export function ShareDialog({
     userId,
     projects,
     profiles,
+    connectedProfiles,
     membersOf,
     addMember,
     updateMemberRole,
@@ -36,16 +37,17 @@ export function ShareDialog({
     [members, project?.owner_id],
   );
 
+  // Only your collaborators (and existing project contacts) are invitable.
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return profiles
+    return connectedProfiles
       .filter((p) => !memberIds.has(p.id))
       .filter((p) =>
         `${p.full_name ?? ""} ${p.email ?? ""}`.toLowerCase().includes(q),
       )
       .slice(0, 6);
-  }, [query, profiles, memberIds]);
+  }, [query, connectedProfiles, memberIds]);
 
   if (!project) return null;
 
@@ -114,7 +116,7 @@ export function ShareDialog({
               )}
               {query.trim() && matches.length === 0 && (
                 <p className="text-xs text-muted mt-1 px-1">
-                  No matching users. They need a TaskFlow account first.
+                  No matching collaborators. Add them in Settings → Collaborators first.
                 </p>
               )}
             </div>

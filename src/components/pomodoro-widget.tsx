@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useWorkspace } from "./workspace-provider";
 import { useUI } from "./ui-provider";
 
 type Phase = "work" | "short_break" | "long_break";
 
-const DURATIONS: Record<Phase, number> = {
+const DEFAULT_DURATIONS: Record<Phase, number> = {
   work: 25 * 60,
   short_break: 5 * 60,
   long_break: 15 * 60,
@@ -19,13 +19,29 @@ const PHASE_LABEL: Record<Phase, string> = {
 };
 
 export function PomodoroWidget() {
-  const { supabase, userId, allTasks } = useWorkspace();
+  const { supabase, userId, allTasks, me } = useWorkspace();
   const { pomodoroTaskId, setPomodoroTaskId } = useUI();
   const [phase, setPhase] = useState<Phase>("work");
-  const [remaining, setRemaining] = useState(DURATIONS.work);
+  const [remaining, setRemaining] = useState(DEFAULT_DURATIONS.work);
   const [running, setRunning] = useState(false);
   const [cycles, setCycles] = useState(0);
   const startedAtRef = useRef<number | null>(null);
+
+  // Per-user durations from settings, falling back to the classic 25/5/15.
+  const durations = useMemo<Record<Phase, number>>(
+    () => ({
+      work: (me?.pomodoro_work_minutes ?? 25) * 60,
+      short_break: (me?.pomodoro_short_break_minutes ?? 5) * 60,
+      long_break: (me?.pomodoro_long_break_minutes ?? 15) * 60,
+    }),
+    [me],
+  );
+
+  // Sync the idle timer when settings load/change.
+  useEffect(() => {
+    if (!running) setRemaining(durations[phase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [durations]);
 
   const task = allTasks.find((t) => t.id === pomodoroTaskId);
 
@@ -55,7 +71,7 @@ export function PomodoroWidget() {
           user_id: userId,
           task_id: pomodoroTaskId,
           kind: "work",
-          duration_seconds: DURATIONS.work,
+          duration_seconds: durations.work,
           started_at: startedAtRef.current
             ? new Date(startedAtRef.current).toISOString()
             : new Date().toISOString(),
@@ -67,10 +83,10 @@ export function PomodoroWidget() {
       setCycles(next);
       const nextPhase: Phase = next % 4 === 0 ? "long_break" : "short_break";
       setPhase(nextPhase);
-      setRemaining(DURATIONS[nextPhase]);
+      setRemaining(durations[nextPhase]);
     } else {
       setPhase("work");
-      setRemaining(DURATIONS.work);
+      setRemaining(durations.work);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remaining]);
@@ -81,17 +97,17 @@ export function PomodoroWidget() {
   }
   function reset() {
     setRunning(false);
-    setRemaining(DURATIONS[phase]);
+    setRemaining(durations[phase]);
   }
   function switchPhase(p: Phase) {
     setPhase(p);
-    setRemaining(DURATIONS[p]);
+    setRemaining(durations[p]);
     setRunning(false);
   }
 
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
   const ss = String(remaining % 60).padStart(2, "0");
-  const pct = 1 - remaining / DURATIONS[phase];
+  const pct = 1 - remaining / durations[phase];
 
   return (
     <div className="surface border border-app rounded-xl p-3">

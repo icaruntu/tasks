@@ -17,6 +17,7 @@ export function TaskDetailPanel() {
     userId,
     allTasks,
     profiles,
+    connectedProfiles,
     sections,
     projects,
     subtasksOf,
@@ -42,15 +43,17 @@ export function TaskDetailPanel() {
   const [aiBusy, setAiBusy] = useState(false);
   const [aiNote, setAiNote] = useState<string | null>(null);
 
+  // Only offer people you're connected to (collaborators / project members).
   const mentionMatches = useMemo(() => {
     if (!mention) return [];
     const q = mention.query.toLowerCase();
-    return profiles
+    return connectedProfiles
+      .filter((p) => p.id !== userId)
       .filter((p) =>
         `${p.full_name ?? ""} ${p.email ?? ""}`.toLowerCase().includes(q),
       )
       .slice(0, 5);
-  }, [mention, profiles]);
+  }, [mention, connectedProfiles, userId]);
 
   const loadDetail = useCallback(
     async (taskId: string) => {
@@ -111,8 +114,8 @@ export function TaskDetailPanel() {
       .select("*")
       .single();
     if (data) {
-      // Parse @mentions: match profile names present after an "@".
-      const mentioned = profiles.filter((p) => {
+      // Parse @mentions: match connected profiles' names present after an "@".
+      const mentioned = connectedProfiles.filter((p) => {
         const name = (p.full_name ?? "").trim();
         if (!name) return false;
         return body.toLowerCase().includes("@" + name.toLowerCase());
@@ -288,11 +291,19 @@ export function TaskDetailPanel() {
                 className="bg-transparent text-sm outline-none cursor-pointer"
               >
                 <option value="">Unassigned</option>
-                {profiles.map((p) => (
+                {connectedProfiles.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.full_name ?? p.email}
                   </option>
                 ))}
+                {/* Keep an out-of-network assignee visible if already set. */}
+                {task.assignee_id &&
+                  !connectedProfiles.some((p) => p.id === task.assignee_id) && (
+                    <option value={task.assignee_id}>
+                      {profiles.find((p) => p.id === task.assignee_id)
+                        ?.full_name ?? "Unknown user"}
+                    </option>
+                  )}
               </select>
             </PropRow>
 
@@ -487,6 +498,19 @@ export function TaskDetailPanel() {
                       const v = e.target.value.trim();
                       if (v && v !== s.name) updateTask(s.id, { name: v });
                     }}
+                  />
+                  <input
+                    type="date"
+                    value={toDateInputValue(s.due_date)}
+                    onChange={(e) =>
+                      updateTask(s.id, {
+                        due_date: e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : null,
+                      })
+                    }
+                    className="bg-transparent text-xs text-muted outline-none cursor-pointer w-[7.5rem]"
+                    title="Due date"
                   />
                   <button
                     onClick={() => deleteTask(s.id)}

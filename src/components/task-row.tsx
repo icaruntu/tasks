@@ -5,7 +5,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { useWorkspace } from "./workspace-provider";
 import { useUI } from "./ui-provider";
 import { Check, DueBadge, PriorityDot, Avatar } from "./ui";
-import type { Task } from "@/lib/types";
+import type { Task, TaskRow as TaskRowType } from "@/lib/types";
 
 export function SortableTaskRow({ task }: { task: Task }) {
   const {
@@ -92,6 +92,45 @@ export function TaskRow({
       <div className="flex items-center gap-3 shrink-0">
         <DueBadge date={task.due_date} />
         {assignee && <Avatar profile={assignee} size={22} />}
+      </div>
+    </div>
+  );
+}
+
+/** A subtask rendered as a task row, indented under its parent (#40). */
+export function SubtaskRow({ subtask }: { subtask: TaskRowType }) {
+  const { toggleComplete, profiles } = useWorkspace();
+  const { openTask, openTaskId } = useUI();
+  const assignee = profiles.find((p) => p.id === subtask.assignee_id);
+
+  return (
+    <div
+      onClick={() => openTask(subtask.id)}
+      className={`group flex items-center gap-3 pl-12 pr-3 py-1.5 border-b border-app cursor-pointer transition ${
+        openTaskId === subtask.id ? "surface-muted" : "hover:surface-muted"
+      }`}
+    >
+      <span className="text-muted text-xs select-none" aria-hidden>
+        ↳
+      </span>
+      <Check
+        size={16}
+        checked={subtask.completed}
+        onChange={() => toggleComplete(subtask.id, !subtask.completed)}
+      />
+      <div className="min-w-0 flex-1">
+        <p
+          className={`text-sm truncate ${
+            subtask.completed ? "line-through text-muted" : ""
+          }`}
+        >
+          {subtask.name}
+        </p>
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        {subtask.priority && <PriorityDot priority={subtask.priority} />}
+        <DueBadge date={subtask.due_date} />
+        {assignee && <Avatar profile={assignee} size={20} />}
       </div>
     </div>
   );

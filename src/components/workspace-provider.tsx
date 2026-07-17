@@ -26,6 +26,7 @@ import { PLAN_LIMITS, type Plan, type PlanLimits } from "@/lib/plans";
 
 type TaskProjectLink = { task_id: string; project_id: string };
 type CommentLite = { id: string; task_id: string };
+type Collaborator = { user_id: string; collaborator_id: string };
 
 const ACTIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
 
@@ -35,6 +36,9 @@ type Ctx = {
   me: Profile | null;
   loading: boolean;
   profiles: Profile[];
+  /** Profiles you're connected to: yourself, your collaborators, and people
+   *  you share a project with. Pickers should use this, not `profiles`. */
+  connectedProfiles: Profile[];
   sections: Section[];
   projects: Project[];
   /** Top-level tasks (no parent), enriched. */
@@ -67,6 +71,15 @@ type Ctx = {
 
   // Project sharing
   membersOf: (projectId: string) => ProjectMember[];
+
+  // Collaborators (settings)
+  collaborators: Profile[];
+  /** Add a collaborator by exact email. Returns an error message or null on success. */
+  addCollaboratorByEmail: (email: string) => Promise<string | null>;
+  removeCollaborator: (collaboratorId: string) => Promise<void>;
+
+  /** Update the signed-in user's profile (e.g. pomodoro settings). */
+  updateMyProfile: (patch: Partial<Profile>) => Promise<string | null>;
   addMember: (projectId: string, userId: string, role: MemberRole) => Promise<void>;
   updateMemberRole: (
     projectId: string,
@@ -111,11 +124,12 @@ export function WorkspaceProvider({
   const [links, setLinks] = useState<TaskProjectLink[]>([]);
   const [comments, setComments] = useState<CommentLite[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [collabLinks, setCollabLinks] = useState<Collaborator[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [plan, setPlan] = useState<Plan>("free");
 
   const refresh = useCallback(async () => {
-    const [p, s, pr, t, tp, c, m, n, sub] = await Promise.all([
+    const [p, s, pr, t, tp, c, m, n, sub, col] = await Promise.all([
       supabase.from("profiles").select("*").order("full_name"),
       supabase.from("sections").select("*").order("position"),
       supabase
@@ -137,6 +151,7 @@ export function WorkspaceProvider({
         .select("plan, status")
         .eq("user_id", userId)
         .maybeSingle(),
+      supabase.from("collaborators").select("user_id, collaborator_id"),
     ]);
     setProfiles(p.data ?? []);
     setSections(s.data ?? []);
@@ -145,6 +160,7 @@ export function WorkspaceProvider({
     setLinks(tp.data ?? []);
     setComments(c.data ?? []);
     setMembers(m.data ?? []);
+    setCollabLinks(col.data ?? []);
     setNotifications(n.data ?? []);
     setPlan(
       sub.data && ACTIVE_STATUSES.has(sub.data.status)
@@ -202,6 +218,28 @@ export function WorkspaceProvider({
     () => profiles.find((p) => p.id === userId) ?? null,
     [profiles, userId],
   );
+
+  // People you explicitly added as collaborators.
+  const collaborators = useMemo<Profile[]>(() => {
+    const ids = new Set(
+      collabLinks.filter((l) => l.user_id === userId).map((l) => l.collaborator_id),
+    );
+    return profiles.filter((p) => ids.has(p.id));
+  }, [collabLinks, profiles, userId]);
+
+  // Yourself + collaborators (either direction) + anyone sharing a project
+  // with you. Pickers (assignee, mentions, share) use this instead of the
+  // full platform-wide profile list.
+  const connectedProfiles = useMemo<Profile[]>(() => {
+    const ids = new Set<string>([userId]);
+    for (const l of collabLinks) {
+      if (l.user_id === userId) ids.add(l.collaborator_id);
+      if (l.collaborator_id === userId) ids.add(l.user_id);
+    }
+    for (const m of members) ids.add(m.user_id);
+    for (const p of projects) ids.add(p.owner_id);
+    return profiles.filter((p) => ids.has(p.id));
+  }, [collabLinks, members, projects, profiles, userId]);
 
   const linksByTask = useMemo(() => {
     const m = new Map<string, string[]>();
@@ -458,6 +496,68 @@ export function WorkspaceProvider({
     [supabase, userId],
   );
 
+  // ---------- Collaborators & profile ----------
+  const addCollaboratorByEmail = useCallback<Ctx["addCollaboratorByEmail"]>(
+    async (email) => {
+      const normalized = email.trim().toLowerCase();
+      if (!normalized) return "Enter an email address.";
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", normalized)
+        .maybeSingle();
+      if (!profile) return "No user with that email. They need a TaskFlow account first.";
+      if (profile.id === userId) return "That's you.";
+      if (
+        collabLinks.some(
+          (l) => l.user_id === userId && l.collaborator_id === profile.id,
+        )
+      )
+        return "Already a collaborator.";
+      const { error } = await supabase
+        .from("collaborators")
+        .insert({ user_id: userId, collaborator_id: profile.id });
+      if (error) return error.message;
+      setCollabLinks((prev) => [
+        ...prev,
+        { user_id: userId, collaborator_id: profile.id },
+      ]);
+      return null;
+    },
+    [supabase, userId, collabLinks],
+  );
+
+  const removeCollaborator = useCallback<Ctx["removeCollaborator"]>(
+    async (collaboratorId) => {
+      setCollabLinks((prev) =>
+        prev.filter(
+          (l) => !(l.user_id === userId && l.collaborator_id === collaboratorId),
+        ),
+      );
+      await supabase
+        .from("collaborators")
+        .delete()
+        .eq("user_id", userId)
+        .eq("collaborator_id", collaboratorId);
+    },
+    [supabase, userId],
+  );
+
+  const updateMyProfile = useCallback<Ctx["updateMyProfile"]>(
+    async (patch) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update(patch)
+        .eq("id", userId);
+      if (error) return error.message;
+      setProfiles((prev) =>
+        prev.map((p) => (p.id === userId ? { ...p, ...patch } : p)),
+      );
+      return null;
+    },
+    [supabase, userId],
+  );
+
   // ---------- Notifications ----------
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read_at).length,
@@ -498,6 +598,7 @@ export function WorkspaceProvider({
     me,
     loading,
     profiles,
+    connectedProfiles,
     sections,
     projects,
     tasks,
@@ -521,6 +622,10 @@ export function WorkspaceProvider({
     addMember,
     updateMemberRole,
     removeMember,
+    collaborators,
+    addCollaboratorByEmail,
+    removeCollaborator,
+    updateMyProfile,
     notifications,
     unreadCount,
     markNotificationRead,

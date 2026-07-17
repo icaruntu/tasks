@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { useWorkspace } from "./workspace-provider";
 import { useUI } from "./ui-provider";
-import { SortableTaskRow } from "./task-row";
+import { SortableTaskRow, SubtaskRow } from "./task-row";
 import type { Section, Task } from "@/lib/types";
 
 export function SectionBlock({
@@ -20,8 +20,14 @@ export function SectionBlock({
   section: Section | null;
   tasks: Task[];
 }) {
-  const { createTask, updateSection, deleteSection, setTaskProjects, tasks: allTop } =
-    useWorkspace();
+  const {
+    createTask,
+    updateSection,
+    deleteSection,
+    setTaskProjects,
+    subtasksOf,
+    tasks: allTop,
+  } = useWorkspace();
   const { filters } = useUI();
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
   const [collapsed, setCollapsed] = useState(false);
@@ -107,7 +113,16 @@ export function SectionBlock({
           }`}
         >
           {tasks.map((t) => (
-            <SortableTaskRow key={t.id} task={t} />
+            <div key={t.id}>
+              <SortableTaskRow task={t} />
+              {/* Subtasks rendered inline, indented under their parent (#40). */}
+              {subtasksOf(t.id)
+                .slice()
+                .sort((a, b) => a.position - b.position)
+                .map((s) => (
+                  <SubtaskRow key={s.id} subtask={s} />
+                ))}
+            </div>
           ))}
           {tasks.length === 0 && !adding && (
             <p className="text-xs text-muted px-4 py-3">No tasks</p>
