@@ -97,7 +97,8 @@ export function SectionBlock({
               if (confirm(`Delete section "${section.name}"? Tasks move to Inbox.`))
                 deleteSection(section.id);
             }}
-            className="opacity-0 group-hover:opacity-100 text-muted hover:text-rose-500 text-xs ml-auto"
+            // Visible on touch (no hover); subtle on desktop, emphasised on hover.
+            className="opacity-60 md:opacity-0 md:group-hover:opacity-100 text-muted hover:text-rose-500 text-sm ml-auto p-1 -m-1"
             title="Delete section"
           >
             🗑

@@ -75,12 +75,12 @@ export default function SettingsPage() {
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addCollaborator()}
               placeholder="Add by email…"
-              className="flex-1 surface-muted border border-app rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)]"
+              className="flex-1 min-w-0 surface-muted border border-app rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)]"
             />
             <button
               onClick={addCollaborator}
               disabled={adding || !email.trim()}
-              className="bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-lg px-4 text-sm font-medium disabled:opacity-60"
+              className="shrink-0 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-60"
             >
               {adding ? "Adding…" : "Add"}
             </button>
@@ -205,8 +205,12 @@ function NumberField({
   onChange: (v: number) => void;
 }) {
   return (
-    <label className="block">
-      <span className="text-xs text-muted">{label}</span>
+    <label className="flex flex-col">
+      {/* Fixed-height label area so a wrapping label ("Short break") doesn't
+          push its input below the others in the grid. */}
+      <span className="text-xs text-muted leading-tight min-h-[2.25rem] flex items-start">
+        {label}
+      </span>
       <input
         type="number"
         min={min}
