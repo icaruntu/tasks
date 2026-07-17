@@ -1,0 +1,33 @@
+# Minimal Supabase config for local `supabase start` in CI (#45).
+# If the CLI schema drifts, regenerate with `supabase init` and re-add the
+# migrations/tests. Most services are disabled — the RLS tests only need Postgres.
+project_id = "taskflow"
+
+[db]
+port = 54322
+major_version = 15
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public"]
+
+[studio]
+enabled = false
+
+[auth]
+enabled = true
+
+# Migrations reference the realtime publication and storage.objects, so these
+# schemas must exist even though the tests don't exercise them.
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
+
+[inbucket]
+enabled = false
+
+[analytics]
+enabled = false

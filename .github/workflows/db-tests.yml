@@ -1,0 +1,31 @@
+name: DB (RLS) tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "supabase/**"
+
+jobs:
+  rls:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Boots Postgres + applies every migration in supabase/migrations.
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Run RLS regression tests
+        run: |
+          DB_URL="$(supabase status -o env | sed -n 's/^DB_URL=//p' | tr -d '"')"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/tests/rls_test.sql
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop
