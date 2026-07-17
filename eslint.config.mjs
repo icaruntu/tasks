@@ -20,6 +20,7 @@ const eslintConfig = [
       "next-env.d.ts",
       "supabase/functions/**",
       "mobile/**",
+      "coverage/**",
     ],
   },
 ];

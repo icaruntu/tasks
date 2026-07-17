@@ -20,9 +20,12 @@ import { SectionBlock } from "@/components/section-block";
 import { ShareDialog } from "@/components/share-dialog";
 import { AiQuickAdd } from "@/components/ai-quick-add";
 import { applyFilters, sortTasks } from "@/lib/filter";
+import {
+  INBOX,
+  resolveDropSection,
+  computeInsertPosition,
+} from "@/lib/dnd";
 import type { Task } from "@/lib/types";
-
-const INBOX = "__inbox__";
 
 export default function ListPage() {
   const { tasks, sections, moveTask, createSection, projects, loading } =
@@ -61,28 +64,13 @@ export default function ListPage() {
     if (activeId === overId) return;
 
     // Resolve the destination section.
-    let destSection: string;
-    if (overId.startsWith("sec:")) {
-      destSection = overId.slice(4);
-    } else {
-      const overTask = tasks.find((t) => t.id === overId);
-      destSection = overTask?.section_id ?? INBOX;
-    }
-
-    const destKey = destSection;
-    const list = (grouped.get(destKey) ?? []).filter(
+    const destSection = resolveDropSection(overId, "sec:", tasks);
+    const list = (grouped.get(destSection) ?? []).filter(
       (t) => t.id !== activeId,
     );
     const overIndex = list.findIndex((t) => t.id === overId);
     const insertAt = overIndex === -1 ? list.length : overIndex;
-
-    const prev = list[insertAt - 1];
-    const next = list[insertAt];
-    let position: number;
-    if (prev && next) position = (prev.position + next.position) / 2;
-    else if (prev) position = prev.position + 1000;
-    else if (next) position = next.position - 1000;
-    else position = 1000;
+    const position = computeInsertPosition(list, insertAt);
 
     moveTask(activeId, destSection === INBOX ? null : destSection, position);
   }
@@ -170,8 +158,9 @@ export default function ListPage() {
               placeholder="Section name…"
               className="mt-4 w-full surface border border-app rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--color-primary)]"
               onKeyDown={async (e) => {
-                if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                  await createSection(e.currentTarget.value.trim());
+                const value = e.currentTarget.value.trim();
+                if (e.key === "Enter" && value) {
+                  await createSection(value);
                   setAddingSection(false);
                 }
                 if (e.key === "Escape") setAddingSection(false);

@@ -525,9 +525,10 @@ export function TaskDetailPanel() {
               placeholder="+ Add subtask"
               className="w-full mt-2 bg-transparent text-sm outline-none text-muted focus:text-[var(--foreground)]"
               onKeyDown={async (e) => {
-                if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                  await addSubtask(e.currentTarget.value);
-                  e.currentTarget.value = "";
+                const input = e.currentTarget;
+                if (e.key === "Enter" && input.value.trim()) {
+                  await addSubtask(input.value);
+                  input.value = "";
                 }
               }}
             />

@@ -16,9 +16,8 @@ import { useUI } from "@/components/ui-provider";
 import { FilterBar } from "@/components/filter-bar";
 import { Check, DueBadge, PriorityBadge, Avatar } from "@/components/ui";
 import { applyFilters, sortTasks } from "@/lib/filter";
+import { INBOX, resolveDropSection, appendPosition } from "@/lib/dnd";
 import type { Task } from "@/lib/types";
-
-const INBOX = "__inbox__";
 
 export default function BoardPage() {
   const { tasks, sections, moveTask, loading } = useWorkspace();
@@ -45,16 +44,11 @@ export default function BoardPage() {
     const { active, over } = e;
     if (!over) return;
     const activeId = String(active.id);
-    let destSection: string;
     const overId = String(over.id);
-    if (overId.startsWith("col:")) destSection = overId.slice(4);
-    else {
-      const t = tasks.find((x) => x.id === overId);
-      destSection = t?.section_id ?? INBOX;
-    }
+    const destSection = resolveDropSection(overId, "col:", tasks);
     const list = grouped.get(destSection) ?? [];
-    const maxPos = list.reduce((m, t) => Math.max(m, t.position), 0);
-    moveTask(activeId, destSection === INBOX ? null : destSection, maxPos + 1000);
+    const position = appendPosition(list);
+    moveTask(activeId, destSection === INBOX ? null : destSection, position);
   }
 
   if (loading)

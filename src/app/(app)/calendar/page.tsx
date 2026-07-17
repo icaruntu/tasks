@@ -25,6 +25,7 @@ import { useWorkspace } from "@/components/workspace-provider";
 import { useUI } from "@/components/ui-provider";
 import { FilterBar } from "@/components/filter-bar";
 import { applyFilters } from "@/lib/filter";
+import { rescheduleToDay } from "@/lib/dnd";
 import { PRIORITY_META, type Task } from "@/lib/types";
 
 export default function CalendarPage() {
@@ -65,13 +66,8 @@ export default function CalendarPage() {
     if (!task) return;
 
     // Preserve the original time-of-day; just move the calendar day.
-    const [y, mo, d] = key.split("-").map(Number);
-    const next = task.due_date ? new Date(task.due_date) : new Date();
-    next.setFullYear(y, mo - 1, d);
-    if (!task.due_date) next.setHours(9, 0, 0, 0);
-    if (format(next, "yyyy-MM-dd") !== format(new Date(task.due_date ?? 0), "yyyy-MM-dd")) {
-      updateTask(task.id, { due_date: next.toISOString() });
-    }
+    const nextDue = rescheduleToDay(key, task.due_date);
+    if (nextDue) updateTask(task.id, { due_date: nextDue });
   }
 
   if (loading)

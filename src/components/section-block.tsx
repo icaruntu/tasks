@@ -134,9 +134,12 @@ export function SectionBlock({
               placeholder="Task name, press Enter…"
               className="w-full px-4 py-2.5 text-sm outline-none surface border-t border-app"
               onKeyDown={async (e) => {
-                if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                  await addTask(e.currentTarget.value);
-                  e.currentTarget.value = "";
+                // Capture the element before awaiting: React nulls currentTarget
+                // once the handler yields.
+                const input = e.currentTarget;
+                if (e.key === "Enter" && input.value.trim()) {
+                  await addTask(input.value);
+                  input.value = "";
                 }
                 if (e.key === "Escape") setAdding(false);
               }}

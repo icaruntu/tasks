@@ -34,6 +34,10 @@ export async function POST(req: Request) {
     const uid = userId ?? (sub.metadata?.user_id as string | undefined);
     if (!uid) return;
     const item = sub.items.data[0];
+    // In current Stripe API versions current_period_end lives on the
+    // subscription item, not the subscription. Guard against a missing value
+    // so the webhook never throws (see issue #28).
+    const periodEndUnix = item?.current_period_end;
     await admin!.from("subscriptions").upsert(
       {
         user_id: uid,
@@ -43,10 +47,9 @@ export async function POST(req: Request) {
         customer_id: typeof sub.customer === "string" ? sub.customer : sub.customer.id,
         subscription_id: sub.id,
         seats: item?.quantity ?? 1,
-        current_period_end: new Date(
-          (sub as unknown as { current_period_end: number }).current_period_end *
-            1000,
-        ).toISOString(),
+        current_period_end: periodEndUnix
+          ? new Date(periodEndUnix * 1000).toISOString()
+          : null,
       },
       { onConflict: "user_id" },
     );
