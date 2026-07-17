@@ -20,7 +20,8 @@ const NAV = [
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { projects, me, createProject, plan, limits } = useWorkspace();
+  const { projects, me, createProject, plan, limits, toast, dismissToast } =
+    useWorkspace();
   const { setFilters, filters } = useUI();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -236,6 +237,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <TaskDetailPanel />
+      {toast && (
+        <div
+          role="alert"
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[60] max-w-[90vw] flex items-center gap-3 bg-rose-600 text-white text-sm rounded-lg px-4 py-2.5 shadow-lg"
+        >
+          <span>{toast}</span>
+          <button
+            onClick={dismissToast}
+            className="text-white/80 hover:text-white text-base leading-none"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {planning && <PlanDialog onClose={() => setPlanning(false)} />}
       {upgradeMsg && (
         <UpgradePrompt

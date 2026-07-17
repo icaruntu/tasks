@@ -217,6 +217,21 @@ export function createSupabaseMock(
   const client = {
     _store: store,
     from: vi.fn((table: string) => new QueryBuilder(store, table)),
+    // Minimal RPC support for the functions the app calls.
+    rpc: vi.fn(async (name: string, args: Record<string, unknown>) => {
+      if (name === "set_task_projects") {
+        const taskId = args.p_task_id as string;
+        const ids = (args.p_project_ids as string[]) ?? [];
+        store.task_projects = (store.task_projects ?? []).filter(
+          (l) => (l as { task_id: string }).task_id !== taskId,
+        );
+        store.task_projects.push(
+          ...ids.map((project_id) => ({ task_id: taskId, project_id })),
+        );
+        return { data: null, error: null };
+      }
+      return { data: null, error: null };
+    }),
     auth: {
       getUser: vi.fn(async () => ({
         data: { user: { id: userId, email: opts.email ?? "me@test.dev" } },

@@ -26,6 +26,10 @@ export function PomodoroWidget() {
   const [running, setRunning] = useState(false);
   const [cycles, setCycles] = useState(0);
   const startedAtRef = useRef<number | null>(null);
+  // Wall-clock deadline for the running phase (#29). Deriving remaining time
+  // from this instead of counting ticks means background-tab throttling can't
+  // stall or slow the timer.
+  const endsAtRef = useRef<number | null>(null);
 
   // Per-user durations from settings, falling back to the classic 25/5/15.
   const durations = useMemo<Record<Phase, number>>(
@@ -46,35 +50,40 @@ export function PomodoroWidget() {
   const task = allTasks.find((t) => t.id === pomodoroTaskId);
 
   useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) {
-          clearInterval(id);
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
-    return () => clearInterval(id);
+    if (!running || endsAtRef.current == null) return;
+    const tick = () => {
+      const secs = Math.max(0, Math.round((endsAtRef.current! - Date.now()) / 1000));
+      setRemaining(secs);
+    };
+    tick();
+    const id = setInterval(tick, 500);
+    // Recompute immediately when the tab is refocused (throttled while hidden).
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [running]);
 
   useEffect(() => {
     if (remaining !== 0 || !running) return;
     // Phase finished.
     setRunning(false);
+    endsAtRef.current = null;
     if (phase === "work") {
-      // Log the completed focus session.
+      // Log the completed focus session with the actual elapsed time.
+      const startedAt = startedAtRef.current ?? Date.now() - durations.work * 1000;
       supabase
         .from("pomodoro_sessions")
         .insert({
           user_id: userId,
           task_id: pomodoroTaskId,
           kind: "work",
-          duration_seconds: durations.work,
-          started_at: startedAtRef.current
-            ? new Date(startedAtRef.current).toISOString()
-            : new Date().toISOString(),
+          duration_seconds: Math.round((Date.now() - startedAt) / 1000),
+          started_at: new Date(startedAt).toISOString(),
           ended_at: new Date().toISOString(),
           completed: true,
         })
@@ -92,17 +101,24 @@ export function PomodoroWidget() {
   }, [remaining]);
 
   function toggle() {
-    if (!running) startedAtRef.current = Date.now();
+    if (!running) {
+      startedAtRef.current = Date.now();
+      endsAtRef.current = Date.now() + remaining * 1000;
+    } else {
+      endsAtRef.current = null;
+    }
     setRunning((r) => !r);
   }
   function reset() {
     setRunning(false);
+    endsAtRef.current = null;
     setRemaining(durations[phase]);
   }
   function switchPhase(p: Phase) {
     setPhase(p);
     setRemaining(durations[p]);
     setRunning(false);
+    endsAtRef.current = null;
   }
 
   const mm = String(Math.floor(remaining / 60)).padStart(2, "0");

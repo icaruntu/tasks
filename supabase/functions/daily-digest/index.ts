@@ -28,6 +28,16 @@ const DIGEST_FROM = Deno.env.get("DIGEST_FROM") ?? "TaskFlow <onboarding@resend.
 // Shared secret so the scheduler can invoke this without a user JWT.
 const CRON_SECRET = Deno.env.get("CRON_SECRET");
 
+/** Constant-time comparison to avoid leaking CRON_SECRET via timing. */
+function safeEqual(a: string, b: string): boolean {
+  const ba = new TextEncoder().encode(a);
+  const bb = new TextEncoder().encode(b);
+  if (ba.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ba.length; i++) diff |= ba[i] ^ bb[i];
+  return diff === 0;
+}
+
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -59,7 +69,7 @@ async function sendEmail(to: string, subject: string, html: string) {
 
 Deno.serve(async (req) => {
   // Auth: require the shared cron secret (function is deployed with verify_jwt=false).
-  if (!CRON_SECRET || req.headers.get("x-cron-secret") !== CRON_SECRET) {
+  if (!CRON_SECRET || !safeEqual(req.headers.get("x-cron-secret") ?? "", CRON_SECRET)) {
     return new Response("unauthorized", { status: 401 });
   }
 

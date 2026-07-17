@@ -618,6 +618,10 @@ export type Database = {
       generate_due_reminders: { Args: never; Returns: number }
       is_project_member: { Args: { pid: string }; Returns: boolean }
       is_project_owner: { Args: { pid: string }; Returns: boolean }
+      set_task_projects: {
+        Args: { p_task_id: string; p_project_ids: string[] }
+        Returns: undefined
+      }
       user_plan: { Args: { uid: string }; Returns: string }
     }
     Enums: {

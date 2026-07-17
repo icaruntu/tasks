@@ -71,3 +71,16 @@ export function toDateInputValue(dueDate: string | null): string {
   if (!dueDate) return "";
   return format(new Date(dueDate), "yyyy-MM-dd");
 }
+
+/**
+ * Convert a `<input type="date">` value (yyyy-MM-dd) to an ISO string anchored
+ * at local noon. `new Date("yyyy-MM-dd")` parses as UTC midnight, which renders
+ * back as the previous day for users west of UTC (#26); building the date from
+ * local components and using noon avoids any DST/offset day-shift.
+ */
+export function dateInputToISO(value: string): string | null {
+  if (!value) return null;
+  const [y, m, d] = value.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  return new Date(y, m - 1, d, 12, 0, 0, 0).toISOString();
+}

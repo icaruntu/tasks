@@ -98,6 +98,10 @@ type Ctx = {
   // Billing
   plan: Plan;
   limits: PlanLimits;
+
+  // Transient error surface for failed mutations (#24).
+  toast: string | null;
+  dismissToast: () => void;
 };
 
 const WorkspaceCtx = createContext<Ctx | null>(null);
@@ -127,6 +131,8 @@ export function WorkspaceProvider({
   const [collabLinks, setCollabLinks] = useState<Collaborator[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [plan, setPlan] = useState<Plan>("free");
+  const [toast, setToast] = useState<string | null>(null);
+  const dismissToast = useCallback(() => setToast(null), []);
 
   const refresh = useCallback(async () => {
     const [p, s, pr, t, tp, c, m, n, sub, col] = await Promise.all([
@@ -170,6 +176,18 @@ export function WorkspaceProvider({
     setLoading(false);
   }, [supabase, userId]);
 
+  // Surface a failed mutation and reconcile optimistic state by re-syncing from
+  // the server (rolls back the optimistic change). Returns true if it errored.
+  const reportError = useCallback(
+    (error: { message?: string } | null): boolean => {
+      if (!error) return false;
+      setToast(error.message || "Something went wrong — your change was reverted.");
+      refresh();
+      return true;
+    },
+    [refresh],
+  );
+
   const reloadNotifications = useCallback(async () => {
     const { data } = await supabase
       .from("notifications")
@@ -183,36 +201,85 @@ export function WorkspaceProvider({
     refresh();
   }, [refresh]);
 
-  // Realtime: re-sync when any relevant table changes (debounced).
+  // Realtime: apply row-level changes incrementally instead of refetching the
+  // whole workspace on every event (#27). This avoids O(workspace) refetch
+  // storms and stops clobbering in-flight optimistic state for unrelated rows.
+  // Rarer tables (members/comments) fall back to a debounced refresh.
   useEffect(() => {
-    const tables = [
-      "tasks",
-      "task_projects",
-      "sections",
-      "projects",
-      "project_members",
-      "comments",
-      "notifications",
-    ] as const;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const schedule = () => {
+    const scheduleRefresh = () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => refresh(), 400);
     };
+
+    type Payload = {
+      eventType: "INSERT" | "UPDATE" | "DELETE";
+      new: Record<string, unknown>;
+      old: Record<string, unknown>;
+    };
+    const upsertBy = <T extends { id: string }>(
+      setter: React.Dispatch<React.SetStateAction<T[]>>,
+      row: T,
+    ) => setter((prev) => {
+      const i = prev.findIndex((x) => x.id === row.id);
+      if (i === -1) return [...prev, row];
+      const next = [...prev];
+      next[i] = { ...next[i], ...row };
+      return next;
+    });
+    const removeBy = <T extends { id: string }>(
+      setter: React.Dispatch<React.SetStateAction<T[]>>,
+      id: string,
+    ) => setter((prev) => prev.filter((x) => x.id !== id));
+
     const channel = supabase.channel("workspace-changes");
-    for (const table of tables) {
-      channel.on(
-        "postgres_changes",
-        { event: "*", schema: "public", table },
-        schedule,
-      );
+
+    channel.on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, (p) => {
+      const { eventType, new: n, old } = p as unknown as Payload;
+      if (eventType === "DELETE") removeBy(setAllTasks, old.id as string);
+      else upsertBy(setAllTasks, n as unknown as TaskRow);
+    });
+    channel.on("postgres_changes", { event: "*", schema: "public", table: "sections" }, (p) => {
+      const { eventType, new: n, old } = p as unknown as Payload;
+      if (eventType === "DELETE") removeBy(setSections, old.id as string);
+      else upsertBy(setSections, n as unknown as Section);
+    });
+    channel.on("postgres_changes", { event: "*", schema: "public", table: "projects" }, (p) => {
+      const { eventType, new: n, old } = p as unknown as Payload;
+      if (eventType === "DELETE") removeBy(setProjects, old.id as string);
+      else upsertBy(setProjects, n as unknown as Project);
+    });
+    channel.on("postgres_changes", { event: "*", schema: "public", table: "task_projects" }, (p) => {
+      const { eventType, new: n, old } = p as unknown as Payload;
+      setLinks((prev) => {
+        if (eventType === "DELETE") {
+          return prev.filter(
+            (l) => !(l.task_id === old.task_id && l.project_id === old.project_id),
+          );
+        }
+        const link = { task_id: n.task_id as string, project_id: n.project_id as string };
+        if (prev.some((l) => l.task_id === link.task_id && l.project_id === link.project_id))
+          return prev;
+        return [...prev, link];
+      });
+    });
+    channel.on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "notifications" },
+      () => reloadNotifications(),
+    );
+    // Comments (counts) and project_members change rarely; a debounced refresh
+    // keeps them correct without per-row bookkeeping.
+    for (const table of ["comments", "project_members"] as const) {
+      channel.on("postgres_changes", { event: "*", schema: "public", table }, scheduleRefresh);
     }
+
     channel.subscribe();
     return () => {
       if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
     };
-  }, [supabase, refresh]);
+  }, [supabase, refresh, reloadNotifications]);
 
   const me = useMemo(
     () => profiles.find((p) => p.id === userId) ?? null,
@@ -301,11 +368,11 @@ export function WorkspaceProvider({
         .insert({ ...input, creator_id: userId })
         .select("*")
         .single();
-      if (error || !data) return null;
+      if (reportError(error) || !data) return null;
       setAllTasks((prev) => [...prev, data]);
       return data;
     },
-    [supabase, userId],
+    [supabase, userId, reportError],
   );
 
   const updateTask = useCallback<Ctx["updateTask"]>(
@@ -313,9 +380,10 @@ export function WorkspaceProvider({
       setAllTasks((prev) =>
         prev.map((t) => (t.id === id ? { ...t, ...patch } : t)),
       );
-      await supabase.from("tasks").update(patch).eq("id", id);
+      const { error } = await supabase.from("tasks").update(patch).eq("id", id);
+      reportError(error);
     },
-    [supabase],
+    [supabase, reportError],
   );
 
   const toggleComplete = useCallback<Ctx["toggleComplete"]>(
@@ -327,9 +395,10 @@ export function WorkspaceProvider({
             : t,
         ),
       );
-      await supabase.from("tasks").update({ completed }).eq("id", id);
+      const { error } = await supabase.from("tasks").update({ completed }).eq("id", id);
+      reportError(error);
     },
-    [supabase],
+    [supabase, reportError],
   );
 
   const deleteTask = useCallback<Ctx["deleteTask"]>(
@@ -337,9 +406,10 @@ export function WorkspaceProvider({
       setAllTasks((prev) =>
         prev.filter((t) => t.id !== id && t.parent_task_id !== id),
       );
-      await supabase.from("tasks").delete().eq("id", id);
+      const { error } = await supabase.from("tasks").delete().eq("id", id);
+      reportError(error);
     },
-    [supabase],
+    [supabase, reportError],
   );
 
   const moveTask = useCallback<Ctx["moveTask"]>(
@@ -349,25 +419,27 @@ export function WorkspaceProvider({
           t.id === id ? { ...t, section_id: sectionId, position } : t,
         ),
       );
-      await supabase
+      const { error } = await supabase
         .from("tasks")
         .update({ section_id: sectionId, position })
         .eq("id", id);
+      reportError(error);
     },
-    [supabase],
+    [supabase, reportError],
   );
 
   const createSection = useCallback<Ctx["createSection"]>(
     async (name) => {
       const maxPos = sections.reduce((m, s) => Math.max(m, s.position), 0);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("sections")
         .insert({ name, owner_id: userId, position: maxPos + 1000 })
         .select("*")
         .single();
+      if (reportError(error)) return;
       if (data) setSections((prev) => [...prev, data]);
     },
-    [supabase, userId, sections],
+    [supabase, userId, sections, reportError],
   );
 
   const updateSection = useCallback<Ctx["updateSection"]>(
@@ -377,9 +449,10 @@ export function WorkspaceProvider({
           .map((s) => (s.id === id ? { ...s, ...patch } : s))
           .sort((a, b) => a.position - b.position),
       );
-      await supabase.from("sections").update(patch).eq("id", id);
+      const { error } = await supabase.from("sections").update(patch).eq("id", id);
+      reportError(error);
     },
-    [supabase],
+    [supabase, reportError],
   );
 
   const deleteSection = useCallback<Ctx["deleteSection"]>(
@@ -388,21 +461,23 @@ export function WorkspaceProvider({
       setAllTasks((prev) =>
         prev.map((t) => (t.section_id === id ? { ...t, section_id: null } : t)),
       );
-      await supabase.from("sections").delete().eq("id", id);
+      const { error } = await supabase.from("sections").delete().eq("id", id);
+      reportError(error);
     },
-    [supabase],
+    [supabase, reportError],
   );
 
   const createProject = useCallback<Ctx["createProject"]>(
     async (name, color) => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("projects")
         .insert({ name, color, owner_id: userId })
         .select("*")
         .single();
+      if (reportError(error)) return;
       if (data) setProjects((prev) => [...prev, data]);
     },
-    [supabase, userId],
+    [supabase, userId, reportError],
   );
 
   const updateProject = useCallback<Ctx["updateProject"]>(
@@ -410,18 +485,20 @@ export function WorkspaceProvider({
       setProjects((prev) =>
         prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
       );
-      await supabase.from("projects").update(patch).eq("id", id);
+      const { error } = await supabase.from("projects").update(patch).eq("id", id);
+      reportError(error);
     },
-    [supabase],
+    [supabase, reportError],
   );
 
   const deleteProject = useCallback<Ctx["deleteProject"]>(
     async (id) => {
       setProjects((prev) => prev.filter((p) => p.id !== id));
       setLinks((prev) => prev.filter((l) => l.project_id !== id));
-      await supabase.from("projects").delete().eq("id", id);
+      const { error } = await supabase.from("projects").delete().eq("id", id);
+      reportError(error);
     },
-    [supabase],
+    [supabase, reportError],
   );
 
   const setTaskProjects = useCallback<Ctx["setTaskProjects"]>(
@@ -430,14 +507,15 @@ export function WorkspaceProvider({
         ...prev.filter((l) => l.task_id !== taskId),
         ...projectIds.map((project_id) => ({ task_id: taskId, project_id })),
       ]);
-      await supabase.from("task_projects").delete().eq("task_id", taskId);
-      if (projectIds.length) {
-        await supabase
-          .from("task_projects")
-          .insert(projectIds.map((project_id) => ({ task_id: taskId, project_id })));
-      }
+      // Atomic replace via an RPC so a mid-flight failure can't drop all links
+      // (#30). The function enforces edit rights + project membership.
+      const { error } = await supabase.rpc("set_task_projects", {
+        p_task_id: taskId,
+        p_project_ids: projectIds,
+      });
+      reportError(error);
     },
-    [supabase],
+    [supabase, reportError],
   );
 
   // ---------- Project sharing ----------
@@ -633,6 +711,8 @@ export function WorkspaceProvider({
     reloadNotifications,
     plan,
     limits: PLAN_LIMITS[plan],
+    toast,
+    dismissToast,
   };
 
   return (

@@ -4,11 +4,13 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useWorkspace } from "./workspace-provider";
 import { useUI } from "./ui-provider";
 import { Check, Avatar } from "./ui";
-import { toDateInputValue } from "@/lib/dates";
+import { toDateInputValue, dateInputToISO } from "@/lib/dates";
 import { PRIORITY_META, RECURRENCE_OPTIONS, type Priority } from "@/lib/types";
 import type { Tables } from "@/lib/database.types";
 
 type CommentWithAuthor = Tables<"comments"> & { author?: Tables<"profiles"> };
+
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25 MB, matches the bucket limit
 
 export function TaskDetailPanel() {
   const { openTaskId, openTask, setPomodoroTaskId } = useUI();
@@ -188,11 +190,22 @@ export function TaskDetailPanel() {
 
   async function onUpload(file: File) {
     if (!task) return;
+    // Client-side guard mirroring the bucket limits (#36). The bucket also
+    // enforces size/type server-side, so this is just for a friendlier error.
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAiNote(null);
+      alert("Attachments are limited to 25 MB.");
+      return;
+    }
     setUploading(true);
-    const path = `${task.id}/${crypto.randomUUID()}-${file.name}`;
+    // Store only a UUID + extension in the path — never the user's filename;
+    // the display name lives in the attachments row.
+    const dot = file.name.lastIndexOf(".");
+    const ext = dot > -1 ? file.name.slice(dot).toLowerCase().replace(/[^.a-z0-9]/g, "") : "";
+    const path = `${task.id}/${crypto.randomUUID()}${ext}`;
     const { error } = await supabase.storage
       .from("attachments")
-      .upload(path, file);
+      .upload(path, file, { contentType: file.type || "application/octet-stream" });
     if (!error) {
       const { data } = await supabase
         .from("attachments")
@@ -207,14 +220,18 @@ export function TaskDetailPanel() {
         .select("*")
         .single();
       if (data) setAttachments((prev) => [...prev, data]);
+    } else {
+      alert(error.message);
     }
     setUploading(false);
   }
 
-  async function openAttachment(path: string) {
+  async function openAttachment(path: string, fileName: string) {
+    // Force a download disposition so HTML/SVG attachments can't execute in the
+    // storage origin when opened.
     const { data } = await supabase.storage
       .from("attachments")
-      .createSignedUrl(path, 60);
+      .createSignedUrl(path, 60, { download: fileName });
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   }
 
@@ -224,7 +241,13 @@ export function TaskDetailPanel() {
         className="fixed inset-0 bg-black/20 z-40"
         onClick={() => openTask(null)}
       />
-      <aside className="fixed right-0 top-0 h-full w-full sm:w-[440px] surface border-l border-app z-50 flex flex-col animate-slidein shadow-xl">
+      {/* key by task id so uncontrolled fields (title/description/subtasks)
+          remount when switching tasks — otherwise stale text can be written
+          back to the wrong task on blur (#25). */}
+      <aside
+        key={task.id}
+        className="fixed right-0 top-0 h-full w-full sm:w-[440px] surface border-l border-app z-50 flex flex-col animate-slidein shadow-xl"
+      >
         {/* Header */}
         <div className="flex items-center gap-2 px-4 h-12 border-b border-app">
           <button
@@ -312,11 +335,7 @@ export function TaskDetailPanel() {
                 type="date"
                 value={toDateInputValue(task.due_date)}
                 onChange={(e) =>
-                  updateTask(task.id, {
-                    due_date: e.target.value
-                      ? new Date(e.target.value).toISOString()
-                      : null,
-                  })
+                  updateTask(task.id, { due_date: dateInputToISO(e.target.value) })
                 }
                 className="bg-transparent text-sm outline-none cursor-pointer"
               />
@@ -503,11 +522,7 @@ export function TaskDetailPanel() {
                     type="date"
                     value={toDateInputValue(s.due_date)}
                     onChange={(e) =>
-                      updateTask(s.id, {
-                        due_date: e.target.value
-                          ? new Date(e.target.value).toISOString()
-                          : null,
-                      })
+                      updateTask(s.id, { due_date: dateInputToISO(e.target.value) })
                     }
                     className="bg-transparent text-xs text-muted outline-none cursor-pointer w-[7.5rem]"
                     title="Due date"
@@ -545,7 +560,7 @@ export function TaskDetailPanel() {
                 >
                   <span>📎</span>
                   <button
-                    onClick={() => openAttachment(a.storage_path)}
+                    onClick={() => openAttachment(a.storage_path, a.file_name)}
                     className="flex-1 text-left truncate hover:underline"
                   >
                     {a.file_name}

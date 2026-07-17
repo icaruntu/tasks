@@ -67,7 +67,7 @@ export default function LoginPage() {
               type="password"
               placeholder="••••••••"
               required
-              minLength={6}
+              minLength={mode === "signup" ? 10 : 6}
             />
 
             {state.error && (

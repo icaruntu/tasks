@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
+
+/** Constant-time string comparison to avoid leaking the secret via timing. */
+function safeEqual(a: string, b: string): boolean {
+  const ba = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ba.length !== bb.length) return false;
+  return timingSafeEqual(ba, bb);
+}
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -21,7 +30,7 @@ export async function POST(req: Request) {
   if (!secret || !admin)
     return NextResponse.json({ error: "Not configured" }, { status: 501 });
 
-  if (req.headers.get("authorization") !== `Bearer ${secret}`)
+  if (!safeEqual(req.headers.get("authorization") ?? "", `Bearer ${secret}`))
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json().catch(() => ({}));
