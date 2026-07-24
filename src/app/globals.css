@@ -39,6 +39,9 @@ html,
 body {
   background: var(--background);
   color: var(--foreground);
+  /* Home Screen / standalone: no rubber-band bounce, no grey tap flash. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
   font-family:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif;
