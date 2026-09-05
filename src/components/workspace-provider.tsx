@@ -286,6 +286,19 @@ export function WorkspaceProvider({
     [profiles, userId],
   );
 
+  // Scale the root rather than individual elements so every rem-based Tailwind
+  // size grows consistently, including when the site is launched from Safari's
+  // Add to Home Screen shortcut.
+  useEffect(() => {
+    const root = document.documentElement;
+    const scale = me?.font_scale ?? 100;
+    if (scale === 100) root.style.removeProperty("--app-font-scale");
+    else root.style.setProperty("--app-font-scale", `${scale}%`);
+    return () => {
+      root.style.removeProperty("--app-font-scale");
+    };
+  }, [me?.font_scale]);
+
   // People you explicitly added as collaborators.
   const collaborators = useMemo<Profile[]>(() => {
     const ids = new Set(

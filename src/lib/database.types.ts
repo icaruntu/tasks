@@ -307,6 +307,7 @@ export type Database = {
           created_at: string
           email: string | null
           full_name: string | null
+          font_scale: number
           id: string
           pomodoro_long_break_minutes: number
           pomodoro_short_break_minutes: number
@@ -318,6 +319,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           full_name?: string | null
+          font_scale?: number
           id: string
           pomodoro_long_break_minutes?: number
           pomodoro_short_break_minutes?: number
@@ -329,6 +331,7 @@ export type Database = {
           created_at?: string
           email?: string | null
           full_name?: string | null
+          font_scale?: number
           id?: string
           pomodoro_long_break_minutes?: number
           pomodoro_short_break_minutes?: number

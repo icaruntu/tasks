@@ -25,6 +25,8 @@ export default function SettingsPage() {
   const [longBreak, setLongBreak] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [pomoMsg, setPomoMsg] = useState<string | null>(null);
+  const [fontSaving, setFontSaving] = useState(false);
+  const [fontMsg, setFontMsg] = useState<string | null>(null);
 
   const workVal = work ?? me?.pomodoro_work_minutes ?? 25;
   const shortVal = shortBreak ?? me?.pomodoro_short_break_minutes ?? 5;
@@ -52,6 +54,15 @@ export default function SettingsPage() {
     });
     setPomoMsg(err ?? "Saved.");
     setSaving(false);
+  }
+
+  async function setFontScale(font_scale: 100 | 115 | 130) {
+    if (fontSaving || font_scale === (me?.font_scale ?? 100)) return;
+    setFontSaving(true);
+    setFontMsg(null);
+    const err = await updateMyProfile({ font_scale });
+    setFontMsg(err ?? "Text size saved.");
+    setFontSaving(false);
   }
 
   return (
@@ -118,6 +129,49 @@ export default function SettingsPage() {
               </p>
             )}
           </div>
+        </section>
+
+        {/* Accessibility */}
+        <section className="surface border border-app rounded-2xl p-5">
+          <h2 className="font-semibold text-sm">Text size</h2>
+          <p className="text-xs text-muted mt-0.5 mb-3">
+            Make text easier to read. This applies across the app, including
+            when it is opened from your Home Screen in Safari.
+          </p>
+          <div className="grid grid-cols-3 gap-2" role="group" aria-label="Text size">
+            {(
+              [
+                [100, "Normal", "text-sm"],
+                [115, "Large", "text-base"],
+                [130, "Extra large", "text-lg"],
+              ] as const
+            ).map(([scale, label, sampleClass]) => {
+              const selected = (me?.font_scale ?? 100) === scale;
+              return (
+                <button
+                  key={scale}
+                  type="button"
+                  disabled={fontSaving}
+                  onClick={() => setFontScale(scale)}
+                  aria-label={label}
+                  aria-pressed={selected}
+                  className={`min-h-14 rounded-lg border px-2 py-2 transition disabled:opacity-60 ${
+                    selected
+                      ? "border-[var(--color-primary)] bg-indigo-50 text-[var(--color-primary)] dark:bg-indigo-950/40"
+                      : "border-app surface-muted hover:surface"
+                  }`}
+                >
+                  <span className={`block font-medium ${sampleClass}`}>Aa</span>
+                  <span className="mt-0.5 block text-[11px]">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {fontMsg && (
+            <p className={`mt-2 text-xs ${fontMsg === "Text size saved." ? "text-muted" : "text-rose-600"}`}>
+              {fontMsg}
+            </p>
+          )}
         </section>
 
         {/* Pomodoro */}

@@ -48,6 +48,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Set by WorkspaceProvider from the signed-in user's accessibility preference.
+   rem-based Tailwind sizes then scale everywhere, including Safari standalone/PWA. */
+html {
+  font-size: var(--app-font-scale, 100%);
+}
+
 .surface {
   background: var(--surface);
 }
