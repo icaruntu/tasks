@@ -53,7 +53,7 @@ describe("DueBadge", () => {
   });
   it("labels today", () => {
     render(<DueBadge date={NOW.toISOString()} />);
-    expect(screen.getByText("Today")).toBeInTheDocument();
+    expect(screen.getByText(/^Today,/)).toBeInTheDocument();
   });
   it("marks overdue dates in rose", () => {
     render(<DueBadge date="2026-07-10T09:00:00Z" />);

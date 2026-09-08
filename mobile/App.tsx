@@ -9,8 +9,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "./lib/supabase";
-import { WorkspaceProvider } from "./lib/store";
-import { registerForPush } from "./lib/push";
+import { WorkspaceProvider, useWorkspace } from "./lib/store";
+import { registerForPush, syncDueNotifications } from "./lib/push";
 import { colors } from "./lib/theme";
 import type { RootStackParamList, TabsParamList } from "./lib/navigation";
 import { AuthScreen } from "./screens/AuthScreen";
@@ -88,6 +88,7 @@ export default function App() {
         <StatusBar style="auto" />
         {session ? (
           <WorkspaceProvider userId={session.user.id}>
+            <DueNotificationScheduler />
             <NavigationContainer>
               <Stack.Navigator>
                 <Stack.Screen name="Tabs" component={AppTabs} options={{ headerShown: false }} />
@@ -115,4 +116,12 @@ export default function App() {
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
+}
+
+function DueNotificationScheduler() {
+  const { allTasks } = useWorkspace();
+  useEffect(() => {
+    syncDueNotifications(allTasks).catch(() => {});
+  }, [allTasks]);
+  return null;
 }

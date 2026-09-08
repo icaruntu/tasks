@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { within } from "@testing-library/react";
+import { fireEvent, waitFor, within } from "@testing-library/react";
 import { renderApp, screen } from "@/test/render";
 import { TaskDetailPanel } from "./task-detail-panel";
 import { useUI } from "./ui-provider";
@@ -61,6 +61,24 @@ describe("TaskDetailPanel", () => {
     const { user, supabase } = await openPanel("t1", seedFor());
     await user.selectOptions(screen.getByDisplayValue("None"), "high");
     expect(supabase._store.tasks[0].priority).toBe("high");
+  });
+
+  it("edits the due time and provides quick snooze actions", async () => {
+    const { user, supabase } = await openPanel(
+      "t1",
+      seedFor({ tasks: [makeTask({ id: "t1", due_date: "2026-07-20T09:00:00Z" })] }),
+    );
+    const dueTime = screen.getByLabelText("Due time");
+    fireEvent.change(dueTime, { target: { value: "14:30" } });
+    await waitFor(() => {
+      const afterTimeChange = new Date(supabase._store.tasks[0].due_date!);
+      expect(afterTimeChange.getHours()).toBe(14);
+      expect(afterTimeChange.getMinutes()).toBe(30);
+    });
+
+    const beforeSnooze = supabase._store.tasks[0].due_date;
+    await user.click(screen.getByRole("button", { name: "+1 hour" }));
+    expect(supabase._store.tasks[0].due_date).not.toBe(beforeSnooze);
   });
 
   it("adds a subtask and shows a due input for it", async () => {

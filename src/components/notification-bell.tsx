@@ -7,6 +7,7 @@ import { useUI } from "./ui-provider";
 import type { Notification } from "@/lib/types";
 
 const ICON: Record<Notification["type"], string> = {
+  due: "🔔",
   assigned: "📌",
   mentioned: "💬",
   comment: "💬",

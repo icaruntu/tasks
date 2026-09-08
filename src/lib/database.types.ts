@@ -634,6 +634,7 @@ export type Database = {
     Enums: {
       member_role: "owner" | "editor" | "viewer"
       notification_type:
+        | "due"
         | "due_soon"
         | "overdue"
         | "assigned"
@@ -770,6 +771,7 @@ export const Constants = {
     Enums: {
       member_role: ["owner", "editor", "viewer"],
       notification_type: [
+        "due",
         "due_soon",
         "overdue",
         "assigned",
