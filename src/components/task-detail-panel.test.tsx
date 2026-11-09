@@ -71,7 +71,7 @@ describe("TaskDetailPanel", () => {
     const dueTime = screen.getByLabelText("Due time");
     fireEvent.change(dueTime, { target: { value: "14:30" } });
     await waitFor(() => {
-      const afterTimeChange = new Date(supabase._store.tasks[0].due_date!);
+      const afterTimeChange = new Date(supabase._store.tasks[0].due_date as string);
       expect(afterTimeChange.getHours()).toBe(14);
       expect(afterTimeChange.getMinutes()).toBe(30);
     });
