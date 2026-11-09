@@ -13,12 +13,14 @@ export function SectionBlock({
   name,
   section,
   tasks,
+  dragDisabled = false,
 }: {
   sectionId: string | null;
   droppableId: string;
   name: string;
   section: Section | null;
   tasks: Task[];
+  dragDisabled?: boolean;
 }) {
   const {
     createTask,
@@ -115,7 +117,7 @@ export function SectionBlock({
         >
           {tasks.map((t) => (
             <div key={t.id}>
-              <SortableTaskRow task={t} />
+              <SortableTaskRow task={t} dragDisabled={dragDisabled} />
               {/* Subtasks rendered inline, indented under their parent (#40). */}
               {subtasksOf(t.id)
                 .slice()

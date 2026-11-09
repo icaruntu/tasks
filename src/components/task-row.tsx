@@ -7,7 +7,13 @@ import { useUI } from "./ui-provider";
 import { Check, DueBadge, PriorityDot, Avatar } from "./ui";
 import type { Task, TaskRow as TaskRowType } from "@/lib/types";
 
-export function SortableTaskRow({ task }: { task: Task }) {
+export function SortableTaskRow({
+  task,
+  dragDisabled = false,
+}: {
+  task: Task;
+  dragDisabled?: boolean;
+}) {
   const {
     attributes,
     listeners,
@@ -15,7 +21,7 @@ export function SortableTaskRow({ task }: { task: Task }) {
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: task.id });
+  } = useSortable({ id: task.id, disabled: dragDisabled });
 
   return (
     <div

@@ -38,3 +38,30 @@ describe("ListPage", () => {
     expect(supabase._store.sections.some((s) => s.name === "Backlog")).toBe(true);
   });
 });
+
+describe("ListPage sorting", () => {
+  it("sorts tasks by due date when chosen", async () => {
+    const { user } = await renderApp(<ListPage />, {
+      seed: {
+        profiles: [makeProfile({ id: "user-1" })],
+        sections: [],
+        tasks: [
+          makeTask({ id: "a", name: "No date", position: 1, due_date: null }),
+          makeTask({ id: "b", name: "Later", position: 2, due_date: "2026-12-20" }),
+          makeTask({ id: "c", name: "Sooner", position: 3, due_date: "2026-12-01" }),
+        ],
+      },
+    });
+    const names = () =>
+      screen
+        .getAllByText(/^(No date|Later|Sooner)$/)
+        .map((el) => el.textContent);
+    expect(names()).toEqual(["No date", "Later", "Sooner"]);
+
+    await user.selectOptions(screen.getByLabelText("Sort tasks"), "due_asc");
+    expect(names()).toEqual(["Sooner", "Later", "No date"]);
+
+    await user.selectOptions(screen.getByLabelText("Sort tasks"), "due_desc");
+    expect(names()).toEqual(["Later", "Sooner", "No date"]);
+  });
+});

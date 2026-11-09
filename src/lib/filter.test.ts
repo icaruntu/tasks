@@ -97,3 +97,32 @@ describe("sortTasks", () => {
     expect(list).toEqual(copy);
   });
 });
+
+describe("sortTasks by due date", () => {
+  const list = () => [
+    task({ id: "none", due_date: null, position: 1 }),
+    task({ id: "late", due_date: "2026-08-01", position: 2 }),
+    task({ id: "early", due_date: "2026-07-10", position: 3 }),
+    task({ id: "mid-b", due_date: "2026-07-20", position: 5 }),
+    task({ id: "mid-a", due_date: "2026-07-20", position: 4 }),
+    task({ id: "done", due_date: "2026-07-01", completed: true, position: 0 }),
+  ];
+
+  it("sorts soonest first, undated last, ties by position", () => {
+    expect(sortTasks(list(), "due_asc").map((t) => t.id)).toEqual([
+      "early", "mid-a", "mid-b", "late", "none", "done",
+    ]);
+  });
+
+  it("sorts latest first, undated still last", () => {
+    expect(sortTasks(list(), "due_desc").map((t) => t.id)).toEqual([
+      "late", "mid-a", "mid-b", "early", "none", "done",
+    ]);
+  });
+
+  it("keeps manual order by default", () => {
+    expect(sortTasks(list()).map((t) => t.id)).toEqual([
+      "none", "late", "early", "mid-a", "mid-b", "done",
+    ]);
+  });
+});

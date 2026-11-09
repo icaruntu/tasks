@@ -21,12 +21,12 @@ import { ShareDialog } from "@/components/share-dialog";
 import { AiQuickAdd } from "@/components/ai-quick-add";
 import { applyFilters, sortTasks } from "@/lib/filter";
 import { INBOX, planListMove } from "@/lib/dnd";
-import type { Task } from "@/lib/types";
+import { TASK_SORT_LABELS, type Task, type TaskSort } from "@/lib/types";
 
 export default function ListPage() {
   const { tasks, sections, moveTask, createSection, projects, loading } =
     useWorkspace();
-  const { filters } = useUI();
+  const { filters, sort, setSort } = useUI();
   const [addingSection, setAddingSection] = useState(false);
   const [sharing, setSharing] = useState(false);
 
@@ -46,15 +46,18 @@ export default function ListPage() {
       if (!m.has(key)) m.set(key, []);
       m.get(key)!.push(t);
     }
-    for (const [k, v] of m) m.set(k, sortTasks(v));
+    for (const [k, v] of m) m.set(k, sortTasks(v, sort));
     return m;
-  }, [visible, sections]);
+  }, [visible, sections, sort]);
 
   const currentProject = projects.find((p) => p.id === filters.projectId);
 
+  // Reordering only makes sense when the list shows the manual order.
+  const dragDisabled = sort !== "manual";
+
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
-    if (!over) return;
+    if (!over || dragDisabled) return;
     const plan = planListMove(String(active.id), String(over.id), tasks, grouped);
     if (plan) moveTask(plan.id, plan.sectionId, plan.position);
   }
@@ -94,6 +97,20 @@ export default function ListPage() {
               <span aria-hidden>👥</span> Share
             </button>
           )}
+          <select
+            aria-label="Sort tasks"
+            value={sort}
+            onChange={(e) => setSort(e.target.value as TaskSort)}
+            className={`border border-app rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[var(--color-primary)] ${
+              sort === "manual" ? "surface-muted text-muted" : "surface font-medium"
+            }`}
+          >
+            {(Object.keys(TASK_SORT_LABELS) as TaskSort[]).map((key) => (
+              <option key={key} value={key}>
+                {TASK_SORT_LABELS[key]}
+              </option>
+            ))}
+          </select>
           <FilterBar />
         </div>
       </div>
@@ -130,6 +147,7 @@ export default function ListPage() {
                     name={section ? section.name : "Inbox"}
                     section={section}
                     tasks={list}
+                    dragDisabled={dragDisabled}
                   />
                 </SortableContext>
               );
