@@ -1,4 +1,4 @@
-import type { Task, ViewFilters } from "@/lib/types";
+import type { Task, TaskSort, ViewFilters } from "@/lib/types";
 import { matchesDueFilter } from "@/lib/dates";
 
 export function applyFilters(tasks: Task[], f: ViewFilters): Task[] {
@@ -27,10 +27,21 @@ export function applyFilters(tasks: Task[], f: ViewFilters): Task[] {
   });
 }
 
-/** Stable sort: incomplete first, then by position. */
-export function sortTasks(tasks: Task[]): Task[] {
+/**
+ * Stable sort: incomplete first, then by the chosen order.
+ * - "manual": by position (drag-and-drop order)
+ * - "due_asc" / "due_desc": by due date; tasks without a due date always go
+ *   last, ties fall back to position.
+ */
+export function sortTasks(tasks: Task[], sort: TaskSort = "manual"): Task[] {
   return [...tasks].sort((a, b) => {
     if (a.completed !== b.completed) return a.completed ? 1 : -1;
+    if (sort !== "manual" && a.due_date !== b.due_date) {
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      const diff = Date.parse(a.due_date) - Date.parse(b.due_date);
+      if (diff !== 0) return sort === "due_asc" ? diff : -diff;
+    }
     return a.position - b.position;
   });
 }

@@ -1,13 +1,15 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
-import { DEFAULT_FILTERS, type ViewFilters } from "@/lib/types";
+import { DEFAULT_FILTERS, type TaskSort, type ViewFilters } from "@/lib/types";
 
 type UICtx = {
   openTaskId: string | null;
   openTask: (id: string | null) => void;
   filters: ViewFilters;
   setFilters: (f: ViewFilters | ((prev: ViewFilters) => ViewFilters)) => void;
+  sort: TaskSort;
+  setSort: (s: TaskSort) => void;
   pomodoroTaskId: string | null;
   setPomodoroTaskId: (id: string | null) => void;
 };
@@ -23,6 +25,7 @@ export function useUI() {
 export function UIProvider({ children }: { children: React.ReactNode }) {
   const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const [filters, setFilters] = useState<ViewFilters>(DEFAULT_FILTERS);
+  const [sort, setSort] = useState<TaskSort>("manual");
   const [pomodoroTaskId, setPomodoroTaskId] = useState<string | null>(null);
 
   return (
@@ -32,6 +35,8 @@ export function UIProvider({ children }: { children: React.ReactNode }) {
         openTask: setOpenTaskId,
         filters,
         setFilters,
+        sort,
+        setSort,
         pomodoroTaskId,
         setPomodoroTaskId,
       }}
