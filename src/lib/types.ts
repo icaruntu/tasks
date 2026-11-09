@@ -64,9 +64,9 @@ export type CompletionFilter = "incomplete" | "complete" | "all";
 export type TaskSort = "manual" | "due_asc" | "due_desc";
 
 export const TASK_SORT_LABELS: Record<TaskSort, string> = {
-  manual: "Manual order",
-  due_asc: "Due date (soonest first)",
-  due_desc: "Due date (latest first)",
+  manual: "Sort: Manual",
+  due_asc: "Sort: Due soonest",
+  due_desc: "Sort: Due latest",
 };
 
 export type ViewFilters = {

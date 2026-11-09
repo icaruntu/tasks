@@ -88,7 +88,10 @@ export default function ListPage() {
             "My Tasks"
           )}
         </h1>
-        <div className="flex items-center gap-2">
+        {/* Mobile: search + filters on their own full-width row, sort/share
+            below. Desktop: one row, sort before filters. */}
+        <div className="flex items-center gap-2 flex-wrap w-full md:w-auto">
+          <FilterBar className="w-full md:w-auto md:order-last" />
           {currentProject && (
             <button
               onClick={() => setSharing(true)}
@@ -101,7 +104,7 @@ export default function ListPage() {
             aria-label="Sort tasks"
             value={sort}
             onChange={(e) => setSort(e.target.value as TaskSort)}
-            className={`border border-app rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[var(--color-primary)] ${
+            className={`flex-1 md:flex-none min-w-0 border border-app rounded-lg px-2 py-1.5 text-sm outline-none focus:border-[var(--color-primary)] ${
               sort === "manual" ? "surface-muted text-muted" : "surface font-medium"
             }`}
           >
@@ -111,7 +114,6 @@ export default function ListPage() {
               </option>
             ))}
           </select>
-          <FilterBar />
         </div>
       </div>
 

@@ -10,7 +10,7 @@ import {
   type CompletionFilter,
 } from "@/lib/types";
 
-export function FilterBar() {
+export function FilterBar({ className = "" }: { className?: string }) {
   const { filters, setFilters } = useUI();
   const [open, setOpen] = useState(false);
 
@@ -29,8 +29,8 @@ export function FilterBar() {
   }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
-      <div className="relative flex-1 min-w-[180px] max-w-xs">
+    <div className={`flex items-center gap-2 ${className}`}>
+      <div className="relative flex-1 min-w-[160px] md:max-w-xs">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted text-sm">
           ⌕
         </span>
