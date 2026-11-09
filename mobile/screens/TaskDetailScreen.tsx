@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { format } from "date-fns";
+import { addDays, addHours, format } from "date-fns";
 import { useWorkspace } from "../lib/store";
 import { colors } from "../lib/theme";
 import { Avatar, Check } from "../components/common";
@@ -39,6 +39,7 @@ export function TaskDetailScreen({ route, navigation }: RootStackScreenProps<"Ta
   const [name, setName] = useState(task?.name ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [newSub, setNewSub] = useState("");
@@ -129,9 +130,14 @@ export function TaskDetailScreen({ route, navigation }: RootStackScreenProps<"Ta
         <Prop label="Due date">
           <Pressable onPress={() => setShowDatePicker(true)}>
             <Text style={styles.value}>
-              {task.due_date ? format(new Date(task.due_date), "MMM d, yyyy") : "Set a date"}
+              {task.due_date ? format(new Date(task.due_date), "MMM d, yyyy · HH:mm") : "Set a date"}
             </Text>
           </Pressable>
+          {task.due_date && (
+            <Pressable onPress={() => setShowTimePicker(true)}>
+              <Text style={styles.link}>Change time</Text>
+            </Pressable>
+          )}
           {task.due_date && (
             <Pressable onPress={() => updateTask(task.id, { due_date: null })}>
               <Text style={styles.clear}>Clear</Text>
@@ -147,6 +153,41 @@ export function TaskDetailScreen({ route, navigation }: RootStackScreenProps<"Ta
                 if (date) updateTask(task.id, { due_date: date.toISOString() });
               }}
             />
+          )}
+          {showTimePicker && task.due_date && (
+            <DateTimePicker
+              value={new Date(task.due_date)}
+              mode="time"
+              display={Platform.OS === "ios" ? "spinner" : "default"}
+              onChange={(_e, time) => {
+                setShowTimePicker(Platform.OS === "ios");
+                if (!time) return;
+                const next = new Date(task.due_date!);
+                next.setHours(time.getHours(), time.getMinutes(), 0, 0);
+                updateTask(task.id, { due_date: next.toISOString() });
+              }}
+            />
+          )}
+          {task.due_date && !task.completed && (
+            <View style={styles.snoozeRow}>
+              <Text style={styles.snoozeLabel}>Snooze</Text>
+              <Pressable
+                style={styles.snoozeButton}
+                onPress={() => updateTask(task.id, { due_date: addHours(new Date(), 1).toISOString() })}
+              >
+                <Text style={styles.snoozeText}>+1 hour</Text>
+              </Pressable>
+              <Pressable
+                style={styles.snoozeButton}
+                onPress={() => {
+                  const next = addDays(new Date(), 1);
+                  next.setHours(9, 0, 0, 0);
+                  updateTask(task.id, { due_date: next.toISOString() });
+                }}
+              >
+                <Text style={styles.snoozeText}>Tomorrow 09:00</Text>
+              </Pressable>
+            </View>
           )}
         </Prop>
 
@@ -346,7 +387,12 @@ const styles = StyleSheet.create({
   prop: { gap: 6 },
   propLabel: { fontSize: 12, color: colors.muted, fontWeight: "600" },
   value: { fontSize: 15, color: colors.primary },
+  link: { fontSize: 12, color: colors.primary, marginTop: 3 },
   clear: { fontSize: 12, color: colors.muted, marginTop: 2 },
+  snoozeRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 4 },
+  snoozeLabel: { fontSize: 12, color: colors.muted, marginRight: 2 },
+  snoozeButton: { backgroundColor: colors.bgMuted, borderRadius: 12, paddingHorizontal: 9, paddingVertical: 5 },
+  snoozeText: { color: colors.text, fontSize: 12, fontWeight: "600" },
   label: { fontSize: 12, color: colors.muted, fontWeight: "700" },
   chipRow: { gap: 6, flexDirection: "row", paddingVertical: 2 },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: colors.bgMuted },

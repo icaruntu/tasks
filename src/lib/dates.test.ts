@@ -4,7 +4,11 @@ import {
   formatDueLabel,
   isOverdue,
   toDateInputValue,
+  toTimeInputValue,
+  dateTimeInputToISO,
+  snoozeDueDate,
 } from "./dates";
+import { format } from "date-fns";
 
 // Freeze "now" to a Wednesday so week math is deterministic.
 const NOW = new Date("2026-07-15T12:00:00Z");
@@ -62,12 +66,28 @@ describe("formatDueLabel", () => {
     expect(formatDueLabel(null)).toBe("");
   });
   it("labels today / tomorrow", () => {
-    expect(formatDueLabel(iso("2026-07-15T09:00:00Z"))).toBe("Today");
-    expect(formatDueLabel(iso("2026-07-16T09:00:00Z"))).toBe("Tomorrow");
+    expect(formatDueLabel(iso("2026-07-15T09:00:00Z"))).toBe(`Today, ${format(new Date(iso("2026-07-15T09:00:00Z")), "HH:mm")}`);
+    expect(formatDueLabel(iso("2026-07-16T09:00:00Z"))).toBe(`Tomorrow, ${format(new Date(iso("2026-07-16T09:00:00Z")), "HH:mm")}`);
   });
   it("formats same-year and other-year dates", () => {
-    expect(formatDueLabel(iso("2026-03-05T09:00:00Z"))).toBe("Mar 5");
-    expect(formatDueLabel(iso("2027-03-05T09:00:00Z"))).toBe("Mar 5, 2027");
+    expect(formatDueLabel(iso("2026-03-05T09:00:00Z"))).toBe(`Mar 5, ${format(new Date(iso("2026-03-05T09:00:00Z")), "HH:mm")}`);
+    expect(formatDueLabel(iso("2027-03-05T09:00:00Z"))).toBe(`Mar 5, 2027, ${format(new Date(iso("2027-03-05T09:00:00Z")), "HH:mm")}`);
+  });
+});
+
+describe("date and time helpers", () => {
+  it("preserves a local time in the input value", () => {
+    expect(toTimeInputValue(iso("2026-07-15T09:30:00Z"))).toBe(format(new Date(iso("2026-07-15T09:30:00Z")), "HH:mm"));
+    expect(toTimeInputValue(null)).toBe("09:00");
+  });
+
+  it("combines separate date and time controls", () => {
+    expect(dateTimeInputToISO("2026-07-15", "14:45")).toBe(new Date(2026, 6, 15, 14, 45).toISOString());
+  });
+
+  it("snoozes for an hour or to tomorrow morning", () => {
+    expect(snoozeDueDate("2026-07-15T12:30:00Z", "hour")).toBe("2026-07-15T13:30:00.000Z");
+    expect(snoozeDueDate(null, "tomorrow")).toBe(new Date(2026, 6, 16, 9, 0).toISOString());
   });
 });
 

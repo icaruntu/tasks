@@ -48,4 +48,12 @@ describe("SettingsPage", () => {
     expect(supabase._store.profiles[0].pomodoro_work_minutes).toBe(45);
     expect(await screen.findByText("Saved.")).toBeInTheDocument();
   });
+
+  it("persists and applies the selected text scale", async () => {
+    const { user, supabase } = await renderApp(<SettingsPage />, { seed: seed() });
+    await user.click(screen.getByRole("button", { name: /^Large$/i }));
+    expect(supabase._store.profiles[0].font_scale).toBe(115);
+    expect(await screen.findByText("Text size saved.")).toBeInTheDocument();
+    expect(document.documentElement.style.getPropertyValue("--app-font-scale")).toBe("115%");
+  });
 });

@@ -4,7 +4,12 @@ import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useWorkspace } from "./workspace-provider";
 import { useUI } from "./ui-provider";
 import { Check, Avatar } from "./ui";
-import { toDateInputValue, dateInputToISO } from "@/lib/dates";
+import {
+  toDateInputValue,
+  toTimeInputValue,
+  dateTimeInputToISO,
+  snoozeDueDate,
+} from "@/lib/dates";
 import { PRIORITY_META, RECURRENCE_OPTIONS, type Priority } from "@/lib/types";
 import type { Tables } from "@/lib/database.types";
 
@@ -331,15 +336,60 @@ export function TaskDetailPanel() {
             </PropRow>
 
             <PropRow label="Due date">
-              <input
-                type="date"
-                value={toDateInputValue(task.due_date)}
-                onChange={(e) =>
-                  updateTask(task.id, { due_date: dateInputToISO(e.target.value) })
-                }
-                className="bg-transparent text-sm outline-none cursor-pointer"
-              />
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <input
+                  type="date"
+                  aria-label="Due date"
+                  value={toDateInputValue(task.due_date)}
+                  onChange={(e) =>
+                    updateTask(task.id, {
+                      due_date: dateTimeInputToISO(
+                        e.target.value,
+                        toTimeInputValue(task.due_date),
+                      ),
+                    })
+                  }
+                  className="bg-transparent text-sm outline-none cursor-pointer"
+                />
+                {task.due_date && (
+                  <input
+                    type="time"
+                    aria-label="Due time"
+                    value={toTimeInputValue(task.due_date)}
+                    onChange={(e) =>
+                      updateTask(task.id, {
+                        due_date: dateTimeInputToISO(
+                          toDateInputValue(task.due_date),
+                          e.target.value,
+                        ),
+                      })
+                    }
+                    className="bg-transparent text-sm outline-none cursor-pointer"
+                  />
+                )}
+              </div>
             </PropRow>
+
+            {task.due_date && !task.completed && (
+              <PropRow label="Snooze">
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => updateTask(task.id, { due_date: snoozeDueDate(task.due_date, "hour") })}
+                    className="rounded-md surface-muted px-2 py-1 text-xs hover:surface"
+                  >
+                    +1 hour
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateTask(task.id, { due_date: snoozeDueDate(task.due_date, "tomorrow") })}
+                    className="rounded-md surface-muted px-2 py-1 text-xs hover:surface"
+                  >
+                    Tomorrow 09:00
+                  </button>
+                </div>
+              </PropRow>
+            )}
 
             <PropRow label="Priority">
               <select
@@ -522,7 +572,12 @@ export function TaskDetailPanel() {
                     type="date"
                     value={toDateInputValue(s.due_date)}
                     onChange={(e) =>
-                      updateTask(s.id, { due_date: dateInputToISO(e.target.value) })
+                      updateTask(s.id, {
+                        due_date: dateTimeInputToISO(
+                          e.target.value,
+                          toTimeInputValue(s.due_date),
+                        ),
+                      })
                     }
                     className="bg-transparent text-xs text-muted outline-none cursor-pointer w-[7.5rem]"
                     title="Due date"

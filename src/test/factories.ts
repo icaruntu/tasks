@@ -16,6 +16,7 @@ export function makeProfile(over: Partial<Profile> = {}): Profile {
     email: "person@test.dev",
     full_name: "Test Person",
     avatar_url: null,
+    font_scale: 100,
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
     pomodoro_work_minutes: 25,

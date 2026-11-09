@@ -1,4 +1,6 @@
 import {
+  addDays,
+  addHours,
   isToday,
   isTomorrow,
   isPast,
@@ -7,7 +9,6 @@ import {
   startOfWeek,
   endOfWeek,
   addWeeks,
-  addDays,
   isWithinInterval,
   format,
   isThisYear,
@@ -51,13 +52,16 @@ export function matchesDueFilter(
   }
 }
 
-/** Short human label for a due date, e.g. "Today", "Tomorrow", "Mar 5". */
+/** Short human label for a due date, including its local time. */
 export function formatDueLabel(dueDate: string | null): string {
   if (!dueDate) return "";
   const d = new Date(dueDate);
-  if (isToday(d)) return "Today";
-  if (isTomorrow(d)) return "Tomorrow";
-  return format(d, isThisYear(d) ? "MMM d" : "MMM d, yyyy");
+  const day = isToday(d)
+    ? "Today"
+    : isTomorrow(d)
+      ? "Tomorrow"
+      : format(d, isThisYear(d) ? "MMM d" : "MMM d, yyyy");
+  return `${day}, ${format(d, "HH:mm")}`;
 }
 
 /** Is the due date in the past (before today)? */
@@ -72,6 +76,10 @@ export function toDateInputValue(dueDate: string | null): string {
   return format(new Date(dueDate), "yyyy-MM-dd");
 }
 
+export function toTimeInputValue(dueDate: string | null): string {
+  return dueDate ? format(new Date(dueDate), "HH:mm") : "09:00";
+}
+
 /**
  * Convert a `<input type="date">` value (yyyy-MM-dd) to an ISO string anchored
  * at local noon. `new Date("yyyy-MM-dd")` parses as UTC midnight, which renders
@@ -83,4 +91,25 @@ export function dateInputToISO(value: string): string | null {
   const [y, m, d] = value.split("-").map(Number);
   if (!y || !m || !d) return null;
   return new Date(y, m - 1, d, 12, 0, 0, 0).toISOString();
+}
+
+/** Convert the separate local date and time inputs into a timezone-safe instant. */
+export function dateTimeInputToISO(date: string, time: string): string | null {
+  if (!date) return null;
+  const [y, m, d] = date.split("-").map(Number);
+  const [hours = 9, minutes = 0] = time.split(":").map(Number);
+  if (!y || !m || !d || hours > 23 || minutes > 59) return null;
+  return new Date(y, m - 1, d, hours, minutes, 0, 0).toISOString();
+}
+
+/** Quick rescheduling presets used by the web and native task editors. */
+export function snoozeDueDate(
+  dueDate: string | null,
+  preset: "hour" | "tomorrow",
+): string {
+  const base = dueDate && new Date(dueDate) > new Date() ? new Date(dueDate) : new Date();
+  if (preset === "hour") return addHours(base, 1).toISOString();
+  const tomorrow = addDays(new Date(), 1);
+  tomorrow.setHours(9, 0, 0, 0);
+  return tomorrow.toISOString();
 }
