@@ -202,6 +202,44 @@ export type Database = {
           },
         ]
       }
+      web_push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "web_push_subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string | null
@@ -619,6 +657,7 @@ export type Database = {
     Functions: {
       can_access_task: { Args: { tid: string }; Returns: boolean }
       generate_due_reminders: { Args: never; Returns: number }
+      get_web_push_public_key: { Args: never; Returns: string }
       is_project_member: { Args: { pid: string }; Returns: boolean }
       is_project_owner: { Args: { pid: string }; Returns: boolean }
       reserve_ai_request: {

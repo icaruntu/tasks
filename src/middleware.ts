@@ -15,7 +15,8 @@ export const config = {
      * - image files
      * - the web app manifest (Safari fetches it without cookies, so an auth
      *   redirect here would break Add to Home Screen)
+     * - the service worker (browsers fetch updates to it in the background)
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|webmanifest)$).*)",
   ],
 };

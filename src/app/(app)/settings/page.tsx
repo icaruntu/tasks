@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useWorkspace } from "@/components/workspace-provider";
 import { Avatar } from "@/components/ui";
+import { PushSettings } from "@/components/push-settings";
 
 export default function SettingsPage() {
   const {
@@ -130,6 +131,8 @@ export default function SettingsPage() {
             )}
           </div>
         </section>
+
+        <PushSettings />
 
         {/* Accessibility */}
         <section className="surface border border-app rounded-2xl p-5">

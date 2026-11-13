@@ -30,5 +30,6 @@ describe("middleware", () => {
     expect(runsOn("/icon-192.png")).toBe(false);
     expect(runsOn("/icon.svg")).toBe(false);
     expect(runsOn("/favicon.ico")).toBe(false);
+    expect(runsOn("/sw.js")).toBe(false);
   });
 });
